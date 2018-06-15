@@ -34,11 +34,16 @@
 #include <signal.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <time.h>
 jmp_buf env;
 
 #include "dbugr.hpp"
 #define DEBUG 1
-#define numbles_for_SF 8192*2
+#define numbles_for_SF    8192
+#define numbers_para 10
+struct timeval dwStart;  
+struct timeval dwEnd; 
+unsigned long dwTime=0;
 
 namespace gr {
     namespace lora {
@@ -77,7 +82,63 @@ namespace gr {
                 d_dbg.attach();
             #endif
 
+                
             set_init(samp_rate, bandwidth, sf, implicit, cr, crc, reduced_rate, disable_drift_correction);
+                
+            //std::cout<<"try1"<<std::endl;
+                
+            upchirp71_len=ideal_chirps_num(2000000,125000,7);
+            d_upchirp71.resize(upchirp71_len);
+            build_ideal_chirps_sf_bw(2000000,125000,7,&d_upchirp71[0]);
+            auto_corr71=xcorr(&d_upchirp71[0], &d_upchirp71[0], NULL,  upchirp71_len,upchirp71_len);
+                
+            upchirp72_len=ideal_chirps_num(2000000,250000,7);
+            d_upchirp72.resize(upchirp72_len);
+            build_ideal_chirps_sf_bw(2000000,250000,7,&d_upchirp72[0]);
+            auto_corr72=xcorr(&d_upchirp72[0], &d_upchirp72[0], NULL,  upchirp72_len,upchirp72_len);
+                
+            upchirp81_len=ideal_chirps_num(2000000,125000,8);
+            d_upchirp81.resize(upchirp81_len);
+            build_ideal_chirps_sf_bw(2000000,125000,8,&d_upchirp81[0]);
+            auto_corr81=xcorr(&d_upchirp81[0], &d_upchirp81[0], NULL,  upchirp81_len,upchirp81_len);
+                
+            upchirp82_len=ideal_chirps_num(2000000,250000,8);
+            d_upchirp82.resize(upchirp82_len);
+            build_ideal_chirps_sf_bw(2000000,250000,8,&d_upchirp82[0]);
+            auto_corr82=xcorr(&d_upchirp82[0], &d_upchirp82[0], NULL,  upchirp82_len,upchirp82_len);
+                
+            upchirp85_len=ideal_chirps_num(2000000,500000,8);
+            d_upchirp85.resize(upchirp85_len);
+            build_ideal_chirps_sf_bw(2000000,500000,8,&d_upchirp85[0]);
+            auto_corr85=xcorr(&d_upchirp85[0], &d_upchirp85[0], NULL,  upchirp85_len,upchirp85_len);
+                
+            upchirp91_len=ideal_chirps_num(2000000,125000,9);
+            d_upchirp91.resize(upchirp91_len);
+            build_ideal_chirps_sf_bw(2000000,125000,9,&d_upchirp91[0]);
+            auto_corr91=xcorr(&d_upchirp91[0], &d_upchirp91[0], NULL,  upchirp91_len,upchirp91_len);
+                
+            upchirp92_len=ideal_chirps_num(2000000,250000,9);
+            d_upchirp92.resize(upchirp92_len);
+            build_ideal_chirps_sf_bw(2000000,250000,9,&d_upchirp92[0]);
+            auto_corr92=xcorr(&d_upchirp92[0], &d_upchirp92[0], NULL,  upchirp92_len,upchirp92_len);
+                
+            upchirp95_len=ideal_chirps_num(2000000,500000,9);
+            d_upchirp95.resize(upchirp95_len);
+            build_ideal_chirps_sf_bw(2000000,500000,9,&d_upchirp95[0]);
+            auto_corr95=xcorr(&d_upchirp95[0], &d_upchirp95[0], NULL,  upchirp95_len,upchirp95_len);
+                
+            upchirp102_len=ideal_chirps_num(2000000,250000,10);
+            d_upchirp102.resize(upchirp102_len);
+            build_ideal_chirps_sf_bw(2000000,250000,10,&d_upchirp102[0]);
+            auto_corr102=xcorr(&d_upchirp102[0], &d_upchirp102[0], NULL,  upchirp102_len,upchirp102_len);
+                
+            upchirp105_len=ideal_chirps_num(2000000,500000,10);
+            d_upchirp105.resize(upchirp105_len);
+            build_ideal_chirps_sf_bw(2000000,500000,10,&d_upchirp105[0]);
+            auto_corr105=xcorr(&d_upchirp105[0], &d_upchirp105[0], NULL,  upchirp105_len,upchirp105_len);
+                
+            //std::cout<<"try2 "<<std::endl;
+                
             std::cout << "Bits (nominal) per symbol: \t"      << d_bits_per_symbol    << std::endl;
             std::cout << "Bins per symbol: \t"      << d_number_of_bins     << std::endl;
             std::cout << "Samples per symbol: \t"   << d_samples_per_symbol << std::endl;
@@ -181,6 +242,60 @@ namespace gr {
             d_h48_fec = fec_create(fs, NULL);
 
     }
+        
+        float decoder_impl::xcorr(const gr_complex * signala, const gr_complex * signalb, gr_complex * result=NULL,  uint32_t Na=2,uint32_t Nb=2)
+        {
+            if(result==NULL){
+                result = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
+            }
+            gr_complex * signala_ext = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
+            gr_complex * signalb_ext = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
+            gr_complex * out_shifted = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
+            gr_complex * outa = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
+            gr_complex * outb = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
+            gr_complex * out = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
+            gr_complex * outb_conj = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
+            
+            fftplan pa = fft_create_plan(Na+Nb-1, &signala_ext[0], &outa[0], LIQUID_FFT_FORWARD, 0);
+            fftplan pb = fft_create_plan(Na+Nb-1, &signalb_ext[0], &outb[0], LIQUID_FFT_FORWARD, 0);
+            fftplan px = fft_create_plan(Na+Nb-1, &out[0], &result[0], LIQUID_FFT_BACKWARD, 0);
+
+            //zeropadding
+            memset (signala_ext, 0, sizeof(gr_complex) * (Nb - 1));
+            memcpy (signala_ext + (Nb - 1), signala, sizeof(gr_complex) * Na);
+            memcpy (signalb_ext, signalb, sizeof(gr_complex) * Nb);
+            memset (signalb_ext + Nb, 0, sizeof(gr_complex) * (Na - 1));
+
+            fft_execute(pa);
+            fft_execute(pb);
+  
+            volk_32fc_conjugate_32fc(outb_conj, outb, Na+Nb-1);
+            gr_complex scale = 1.0/(Na+Nb-1);
+            for (uint32_t i = 0; i < Na+Nb-1; i++)
+                out[i] = outa[i] * outb_conj[i] * scale;
+
+            fft_execute(px);
+
+            fft_destroy_plan(pa);
+            fft_destroy_plan(pb);
+            fft_destroy_plan(px);
+
+            free(signala_ext);
+            free(signalb_ext);
+            free(out_shifted);
+            free(out);
+            free(outa);
+            free(outb);
+            free(outb_conj);
+
+            //fftw_cleanup();
+            float * resule_float = (float *) malloc(sizeof(float) * (Na+Nb-1));
+            memset (resule_float, 0, sizeof(float) * (Na+Nb-1));
+            volk_32fc_magnitude_squared_32f(resule_float,result,Na+Nb-1);
+            float max_corr=*std::max_element(resule_float,resule_float+Na+Nb-1);
+            
+            return std::sqrt(max_corr);
+        }
 
         void decoder_impl::build_ideal_chirps(void) {
             d_downchirp.resize(d_samples_per_symbol);
@@ -236,6 +351,29 @@ namespace gr {
                 i=i+4;
             }
                       
+        }
+        
+        uint32_t decoder_impl::ideal_chirps_num(float samp_rate,uint32_t bandwidth, uint8_t sf) {         //lx
+            double symbols_per_second_lx=(double)bandwidth / (1u << sf);
+            uint32_t samples_per_symbol_lx=(uint32_t)(samp_rate / symbols_per_second_lx);
+            return samples_per_symbol_lx;
+        }
+        
+        void decoder_impl::build_ideal_chirps_sf_bw(float samp_rate,uint32_t bandwidth, uint8_t sf,gr_complex* d_upchirplx) {         //lx
+            double dt_lx=1.0f / samp_rate;
+            double symbols_per_second_lx=(double)bandwidth / (1u << sf);
+            uint32_t samples_per_symbol_lx=(uint32_t)(samp_rate / symbols_per_second_lx);
+            
+            const double T       = -0.5 * bandwidth * symbols_per_second_lx;
+            const double f0      = (bandwidth / 2.0);
+            const double pre_dir = 2.0 * M_PI;
+            double t;
+            gr_complex cmx       = gr_complex(1.0f, 1.0f);
+            for (uint32_t i = 0u; i < samples_per_symbol_lx;i++ ) {                
+                t = dt_lx * i;
+                d_upchirplx[i]   = cmx * gr_expj(pre_dir * t * (f0 + T * t) * -1.0f);
+            }
+            samples_to_file("/home/lx/decode_lora/d_upchirplx.bin", &d_upchirplx[0], samples_per_symbol_lx, sizeof(gr_complex));//}          
         }
 
 
@@ -701,6 +839,49 @@ namespace gr {
 
              return max_correlation;
          }
+        float decoder_impl::correlate_dete(const gr_complex *input,float auto_corr_D,int *para_dex) {
+             float dete_value[numbers_para];
+            
+             /*float corr_value71=xcorr(&d_upchirp71[0], &input[0], NULL, upchirp71_len,numbles_for_SF);
+             dete_value[0]=10*corr_value71/std::sqrt(auto_corr_D*auto_corr71);*/
+            
+             float corr_value72=xcorr(&d_upchirp72[0], &input[0], NULL, upchirp72_len,numbles_for_SF);
+             dete_value[1]=10*corr_value72/std::sqrt(auto_corr_D*auto_corr72);
+            
+             float corr_value81=xcorr(&d_upchirp81[0], &input[0], NULL, upchirp81_len,numbles_for_SF);
+             dete_value[2]=10*corr_value81/std::sqrt(auto_corr_D*auto_corr81);
+            
+             /*float corr_value82=xcorr(&d_upchirp82[0], &input[0], NULL, upchirp82_len,numbles_for_SF);
+             dete_value[3]=10*corr_value82/std::sqrt(auto_corr_D*auto_corr82);
+            
+             float corr_value85=xcorr(&d_upchirp85[0], &input[0], NULL, upchirp85_len,numbles_for_SF);
+             dete_value[4]=10*corr_value85/std::sqrt(auto_corr_D*auto_corr85);
+            
+             float corr_value91=xcorr(&d_upchirp91[0], &input[0], NULL, upchirp91_len,numbles_for_SF);
+             dete_value[5]=10*corr_value91/std::sqrt(auto_corr_D*auto_corr91);
+            
+             float corr_value92=xcorr(&d_upchirp92[0], &input[0], NULL, upchirp92_len,numbles_for_SF);
+             dete_value[6]=10*corr_value92/std::sqrt(auto_corr_D*auto_corr92);
+            
+             float corr_value95=xcorr(&d_upchirp95[0], &input[0], NULL, upchirp95_len,numbles_for_SF);
+             dete_value[7]=10*corr_value95/std::sqrt(auto_corr_D*auto_corr95);
+            
+             float corr_value102=xcorr(&d_upchirp102[0], &input[0], NULL, upchirp102_len,numbles_for_SF);
+             dete_value[8]=10*corr_value102/std::sqrt(auto_corr_D*auto_corr102);
+            
+             float corr_value105=xcorr(&d_upchirp105[0], &input[0], NULL, upchirp105_len,numbles_for_SF);
+             dete_value[9]=10*corr_value105/std::sqrt(auto_corr_D*auto_corr105);*/
+            
+             float max_correlation=0;
+             for (int i=0;i<numbers_para;i++){
+                 if(dete_value[i]>max_correlation){
+                     max_correlation=dete_value[i];
+                     *para_dex=i;
+                 }
+             }
+            
+             return max_correlation;
+         }
 
         float decoder_impl::stddev(const float *values, const uint32_t len, const float mean) {
             float variance = 0.0f;
@@ -1035,26 +1216,26 @@ namespace gr {
             const gr_complex *input     = (gr_complex *) input_items[0];
             //const gr_complex *raw_input = (gr_complex *) input_items[1]; // Input bypassed by low pass filter
 
-            d_fine_sync = 0; // Always reset fine sync
+            //d_fine_sync = 0; // Always reset fine sync
             
             //uint8_t ploayload[]={0x09, 0x30, 0x60, 0x00, 0x00, 0x01, 0x00, 0x00, 0xaf, 0x80, 0x07, 0x02, 0x8c, 0x1e,};
             
-            static int detect_count=0;
-            static uint32_t BW_LX=250000;
-            static int SF=0;
-            static int lxcount=1;
-            //static int lxcount1=1;
-            float corr_value1=0;
-            float corr_value2=0;
-            float corr_value3=0;
-            uint8_t sf_BW_temp[2]={0,0};
+            //static int detect_count=0;
+            //static uint32_t BW_LX=250000;
+            //static int SF=0;
+            //static int lxcount=1;
+            //float corr_value1=0;
+            //float corr_value2=0;
+            //float corr_value3=0;
+            //uint8_t sf_BW_temp[2]={0,0};
             
-            if((resetconfig==1)&&(comeback_flag==0)){
-                set_init(d_samples_per_second, BW_LX, SF, d_implicit, d_phdr.cr, d_phdr.has_mac_crc, d_reduced_rate, !d_enable_fine_sync);
-                resetconfig=0;
-            }
+            //if((resetconfig==1)&&(comeback_flag==0)){
+            //    set_init(d_samples_per_second, BW_LX, SF, d_implicit, d_phdr.cr, d_phdr.has_mac_crc, d_reduced_rate, !d_enable_fine_sync);
+            //    resetconfig=0;
+            //}
             //std::cout<<signal_flag<<" "<<comeback_flag<<std::endl;
-            if((signal_flag==0)&&comeback_flag){
+            /*if((signal_flag==0)&&comeback_flag){
+            
             float energy=determine_energy(input);
                 if(energy>1){
                     std::cout<<std::endl;
@@ -1113,11 +1294,7 @@ namespace gr {
                                 }
                             }
                             
-                            /*if(lxcount!=0){
-                                SF=10;
-                                BW_LX=250000;
-                            }
-                            lxcount=1;   */
+                            
                             std::cout<<"SF: "<<SF<<" BW: "<<BW_LX/1000.0<<"KHz"<<std::endl;
 
                             if(BW_LX!=d_bw){
@@ -1149,14 +1326,34 @@ namespace gr {
                     consume_each(d_samples_per_symbol);
                 }
                     
-            }
+            }*/
             
-            if(signal_flag&&comeback_flag)  
-            {   
+            //if(signal_flag&&comeback_flag)
+            gettimeofday(&dwStart,NULL); 
+            
+            static bool dete_noise=true;
+            float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF);
+            //float corr_value81=xcorr(&d_upchirp81[0], &input[0], NULL, upchirp81_len,numbles_for_SF);
+            //float dete_value=10*corr_value81/std::sqrt(auto_corr_D*auto_corr81);
+            if(dete_noise){
+                int para_dex=0;
+                float dete_value=correlate_dete(&input[0],auto_corr_D,&para_dex);
+                if(dete_value>1.5){
+                    std::cout<<"            dete_value: "<<dete_value<<" para_dex: "<<para_dex<<std::endl;
+                }
+                 consume_each(numbles_for_SF);
+            }
+            gettimeofday(&dwEnd,NULL);  
+            dwTime = 1000000*(dwEnd.tv_sec-dwStart.tv_sec)+(dwEnd.tv_usec-dwStart.tv_usec);  
+            printf("P_T: %ld\n",dwTime); 
+            
+            /*if(comeback_flag)
+            {  
                 switch (d_state) {
                     case gr::lora::DecoderState::DETECT: {
                         float correlation = detect_preamble_autocorr(input, d_samples_per_symbol);
-                        //std::cout<<"DETECT"<<std::endl;
+                        
+                        //std::cout<<"DETECT: "<<correlation<<std::endl;
                         if (correlation >= 0.90f) {
                             determine_snr();
                             #ifdef DEBUG
@@ -1164,33 +1361,11 @@ namespace gr {
                             #endif
                             d_corr_fails = 0u;
                             d_state = gr::lora::DecoderState::SYNC;
-                            //std::cout<<"start_SYNC"<<std::endl;
-                            detect_count=0;
+                            std::cout<<"start_SYNC"<<std::endl;
+                            //detect_count=0;
                             break;
                         }
-                        else{
-                            detect_count+=1;
-                        }
-                        if(detect_count==3){
-                            signal_flag=0;
-                            detect_count=0;
-                            if(d_sf_old!=d_sf||d_bw_old!=d_bw){
-                                if(d_bw_old!=d_bw){
-                                comeback_flag=0;
-                                float BW=d_bw_old/1000.0;
-                                //std::cout<<"d_bw_old: "<<d_bw_old<<std::endl;
-                                pmt::pmt_t payload_bloblx = pmt::cons(pmt::intern(std::string("BW")), pmt::from_double(BW));
-                                message_port_pub(pmt::mp("hahaout"), payload_bloblx);//lx
-                                
-                                }
-
-                                if(d_sf_old!=d_sf){
-                                    //std::cout<<"setback"<<std::endl;
-                                    set_init(d_samples_per_second, d_bw_old, d_sf_old, d_implicit, d_phdr.cr, d_phdr.has_mac_crc, d_reduced_rate, !d_enable_fine_sync);
-                                }
-                            }
-                            //std::cout<<"detect_failed"<<std::endl;
-                        }
+                        
                         consume_each(d_samples_per_symbol);
                         //samples_to_file("/home/lx/decode_lora/after_detect.bin",  &input[0], d_samples_per_symbol*4, sizeof(gr_complex));
                         
@@ -1210,7 +1385,7 @@ namespace gr {
                         samples_to_file("/home/lx/decode_lora/data_upchirp.bin",  &input[0], d_samples_per_symbol*5, sizeof(gr_complex));
                         
                         d_state = gr::lora::DecoderState::FIND_SFD;
-                        std::cout<<"start_FIND_SFD,i= "<<i<<std::endl;
+                        //std::cout<<"start_FIND_SFD,i= "<<i<<std::endl;
                         break;
                     }
 
@@ -1220,11 +1395,11 @@ namespace gr {
                             d_debug << "Cd: " << c << std::endl;
                         #endif
 
-                        std::cout<<"c: "<<c<<std::endl;           
+                        //std::cout<<"c: "<<c<<std::endl;           
 
                         if (c > 0.96f) {
 
-                        std::cout<<"downchirp"<<std::endl;
+                        //std::cout<<"downchirp"<<std::endl;
 
                             #ifdef DEBUG
                                 d_debug << "SYNC: " << c << std::endl;
@@ -1238,10 +1413,10 @@ namespace gr {
                                 fine_sync(input, d_number_of_bins-1, d_decim_factor * 4);
 
                                 //std::cout<<"d_fine_sync: "<<d_fine_sync<<std::endl;
-                                std::cout<<"upchirp"<<std::endl;
+                                //std::cout<<"upchirp"<<std::endl;
                             } else {
                                 d_corr_fails++;
-                                std::cout<<"noise"<<std::endl;
+                                //std::cout<<"noise"<<std::endl;
                                 if(d_corr_fails==3){
                                     d_state = gr::lora::DecoderState::SYNC;
                                 }                                
@@ -1250,7 +1425,7 @@ namespace gr {
                             if (d_corr_fails > 4u) {
                                 d_state = gr::lora::DecoderState::DETECT;
                                 //set_sf(7);
-                                std::cout<<"out_FIND_SFD"<<std::endl;
+                                //std::cout<<"out_FIND_SFD"<<std::endl;
   
                                 signal_flag=0;
                                 #ifdef DEBUG
@@ -1333,7 +1508,7 @@ namespace gr {
                             }
                             
                             samples_to_file_add("/home/lx/decode_lora/record.txt",  &d_decoded[0],&sf_BW_temp[0],d_payload_length);
-                            lxcount=0;
+                            //lxcount=0;
                             //message_port_pub(pmt::mp("hahaout"), payload_bloblx);//lx
                             //std::cout<<"out1"<<std::endl;
                             msg_lora_frame();
@@ -1366,12 +1541,12 @@ namespace gr {
             else
             {
                 consume_each(d_samples_per_symbol);
-            }
+            }*/
             //std::cout<<"out"<<std::endl;
             // DBGR_INTERMEDIATE_TIME_MEASUREMENT();
 
             // Tell runtime system how many output items we produced.
-            if(lxcount==0){
+            /*if(lxcount==0){
                 lxcount=1;
                 std::cout<<"hehe"<<std::endl;
                 float BW=500000/1000.0;
@@ -1379,7 +1554,7 @@ namespace gr {
                 pmt::pmt_t payload_bloblx = pmt::cons(pmt::intern(std::string("BW")), pmt::from_double(BW));
                 message_port_pub(pmt::mp("hahaout"), payload_bloblx);//lx
                 set_init(d_samples_per_second, 500000, 9, d_implicit, d_phdr.cr, d_phdr.has_mac_crc, d_reduced_rate, !d_enable_fine_sync);
-            }
+            }*/
             return 0;
         }
 

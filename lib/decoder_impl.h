@@ -132,7 +132,46 @@ namespace gr {
                 uint32_t out_sample_len;
                 std::vector<float>  ifreq_temp;
                 uint32_t corr_len;
-                //std::vector<gr_complex> d_downchirplx;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_upchirp71;        ///< The complex ideal downchirp.
+                uint32_t upchirp71_len;
+                float auto_corr71;
+            
+                std::vector<gr_complex> d_upchirp72;        ///< The complex ideal downchirp.
+                uint32_t upchirp72_len;
+                float auto_corr72;
+            
+                std::vector<gr_complex> d_upchirp81;        ///< The complex ideal downchirp.
+                uint32_t upchirp81_len;
+                float auto_corr81;
+            
+                std::vector<gr_complex> d_upchirp82;        ///< The complex ideal downchirp.
+                uint32_t upchirp82_len;
+                float auto_corr82;
+            
+                std::vector<gr_complex> d_upchirp85;        ///< The complex ideal downchirp.
+                uint32_t upchirp85_len;
+                float auto_corr85;
+                
+                std::vector<gr_complex> d_upchirp91;        ///< The complex ideal downchirp.
+                uint32_t upchirp91_len;
+                float auto_corr91;
+            
+                std::vector<gr_complex> d_upchirp92;        ///< The complex ideal downchirp.
+                uint32_t upchirp92_len;
+                float auto_corr92;
+            
+                std::vector<gr_complex> d_upchirp95;        ///< The complex ideal downchirp.
+                uint32_t upchirp95_len;
+                float auto_corr95;
+            
+                std::vector<gr_complex> d_upchirp102;        ///< The complex ideal downchirp.
+                uint32_t upchirp102_len;
+                float auto_corr102;
+            
+                std::vector<gr_complex> d_upchirp105;        ///< The complex ideal downchirp.
+                uint32_t upchirp105_len;
+                float auto_corr105;
+            
                 std::vector<gr_complex> d_upchirplx;        ///< The complex ideal downchirp.
                 uint32_t d_upchirplx_len;
                 std::vector<float>      d_upchirp_ifreqlx;    ///< The instantaneous frequency of the ideal upchirp.
@@ -142,6 +181,8 @@ namespace gr {
                 
                 uint8_t          d_sf_old;                      ///< The Spreading Factor.
                 uint32_t         d_bw_old; 
+            
+                float xcorr(const gr_complex * signala, const gr_complex * signalb, gr_complex * result, uint32_t Na,uint32_t Nb);
             
                 /**
                  *  \message handle lx
@@ -183,7 +224,9 @@ namespace gr {
                  *  \brief  Generate the ideal up- and downchirps.  lx
                  */
                 void build_ideal_chirps_lx(float samp_rate,uint32_t bandwidth, uint8_t sf);
-
+            
+                void build_ideal_chirps_sf_bw(float samp_rate,uint32_t bandwidth, uint8_t sf,gr_complex* d_upchirplx);
+                uint32_t ideal_chirps_num(float samp_rate,uint32_t bandwidth, uint8_t sf);
                 /**
                  *  \brief  Debug method to dump the given complex array to the given file in binary format.
                  *
@@ -237,6 +280,7 @@ namespace gr {
                 float sliding_norm_cross_correlate_upchirp(const float *samples_ifreq, const uint32_t window, int32_t *index);
             
                 float correlate_detSFBW_lx(const gr_complex *samples, const uint32_t window);
+                float correlate_dete(const gr_complex *input,float auto_corr_D,int *para_dex);
 
                 /**
                  *  \brief Base method to start downchirp correlation and return the correlation coefficient.
