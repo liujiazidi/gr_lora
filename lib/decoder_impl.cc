@@ -35,15 +35,23 @@
 #include <setjmp.h>
 #include <stdarg.h>
 #include <time.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/mman.h>
 jmp_buf env;
 
 #include "dbugr.hpp"
 #define DEBUG 1
 #define numbles_for_SF    8192
 #define numbers_para 10
-struct timeval dwStart;  
-struct timeval dwEnd; 
+#define SIG_RECVDATA    __SIGRTMIN+10
+#define INPUT 0   
+#define OUTPUT 1  
+struct timeval dwStart;
+struct timeval dwEnd;
 unsigned long dwTime=0;
+pid_t child71, child72, child81, child;
 
 namespace gr {
     namespace lora {
@@ -840,10 +848,10 @@ namespace gr {
              return max_correlation;
          }
         float decoder_impl::correlate_dete(const gr_complex *input,float auto_corr_D,int *para_dex) {
-             float dete_value[numbers_para];
+             float dete_value[numbers_para]={0};
             
-             /*float corr_value71=xcorr(&d_upchirp71[0], &input[0], NULL, upchirp71_len,numbles_for_SF);
-             dete_value[0]=10*corr_value71/std::sqrt(auto_corr_D*auto_corr71);*/
+             float corr_value71=xcorr(&d_upchirp71[0], &input[0], NULL, upchirp71_len,numbles_for_SF);
+             dete_value[0]=10*corr_value71/std::sqrt(auto_corr_D*auto_corr71);
             
              float corr_value72=xcorr(&d_upchirp72[0], &input[0], NULL, upchirp72_len,numbles_for_SF);
              dete_value[1]=10*corr_value72/std::sqrt(auto_corr_D*auto_corr72);
@@ -1192,7 +1200,7 @@ namespace gr {
             }
 
             d_cfo_estimation = sum / (float)(d_samples_per_symbol - 1u);
-        }
+        }  
 
         /**
          * New method to determine CFO.
@@ -1206,7 +1214,7 @@ namespace gr {
 
             return mult_ifreq[256] / (2.0 * M_PI) * d_samples_per_second;
         }
-
+        
         int decoder_impl::work(int noutput_items,
                                gr_vector_const_void_star& input_items,
                                gr_vector_void_star&       output_items) {
@@ -1331,11 +1339,212 @@ namespace gr {
             //if(signal_flag&&comeback_flag)
             gettimeofday(&dwStart,NULL); 
             
-            static bool dete_noise=true;
-            float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF);
-            //float corr_value81=xcorr(&d_upchirp81[0], &input[0], NULL, upchirp81_len,numbles_for_SF);
-            //float dete_value=10*corr_value81/std::sqrt(auto_corr_D*auto_corr81);
-            if(dete_noise){
+            //static bool dete_noise=true;
+            static int num_end_pro=0;
+            bool x71_flag,x72_flag,x81_flag;
+            x71_flag=false;
+            x72_flag=false;
+            x81_flag=false;
+            int file_fathertox71[2];
+            int file_fathertox72[2];
+            int file_fathertox81[2];
+            int file_x71tofather[2]; 
+            int file_x72tofather[2]; 
+            int file_x81tofather[2]; 
+            pipe(file_fathertox71);
+            pipe(file_fathertox72);
+            pipe(file_fathertox81);
+            pipe(file_x71tofather); 
+            pipe(file_x72tofather); 
+            pipe(file_x81tofather); 
+            char buf[256]={' '};   
+            int returned_count=0; 
+            //float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF);
+            
+            child71= fork();
+            if(child71 == 0)
+            {
+                double auto_corr_D=0;
+                //printf("child71 pid\n");
+                memset (buf, ' ', sizeof(char) * (255));
+                
+                float corr_value71=xcorr(&d_upchirp71[0], &input[0], NULL, upchirp71_len,numbles_for_SF);
+                
+                close(file_fathertox71[OUTPUT]);
+                returned_count = read(file_fathertox71[INPUT], buf, sizeof(buf));
+                //printf("%d bytes of data received from spawned 71process: %s\n",returned_count, buf);
+                auto_corr_D=atof(buf)/10000.0;
+            
+                returned_count=0;
+                
+                float dete_value=10*corr_value71/std::sqrt(auto_corr_D*auto_corr71); 
+                
+                memset (buf, ' ', sizeof(char) * (255));
+                sprintf(buf,"%.6f",dete_value);
+                int i=0;
+                for(i;i<255;i++){
+                    if(buf[i]==' '){
+                        break;
+                    }
+                }
+                close(file_x71tofather[INPUT]);
+                write(file_x71tofather[OUTPUT], buf, i); 
+                
+                exit(0);
+            }
+            else
+            {  std::cout<<"child71: "<<child71<<std::endl;
+                child72= fork();  
+                if(child72 == 0)  
+                { 
+                    double auto_corr_D=0;
+                    //printf("child72 pid\n");
+                    memset (buf, ' ', sizeof(char) * (255));
+                    
+                    float corr_value72=xcorr(&d_upchirp72[0], &input[0], NULL, upchirp72_len,numbles_for_SF);
+                    
+                    close(file_fathertox72[OUTPUT]);
+                    returned_count = read(file_fathertox72[INPUT], buf, sizeof(buf));
+                    //printf("%d bytes of data received from spawned 72process: %s\n",returned_count, buf);
+                    auto_corr_D=atof(buf)/10000.0;
+                     
+                    returned_count=0;
+                    
+                    float dete_value=10*corr_value72/std::sqrt(auto_corr_D*auto_corr72);
+                    
+                    memset (buf, ' ', sizeof(char) * (255));
+                    sprintf(buf,"%.6f",dete_value);
+                    int i=0;
+                    for(i;i<255;i++){
+                        if(buf[i]==' '){
+                            break;
+                        }
+                    }
+                    
+                    close(file_x72tofather[INPUT]);
+                    write(file_x72tofather[OUTPUT], buf, i); 
+                    
+                    exit(0);
+                }  
+                else  
+                {  std::cout<<"child72: "<<child72<<std::endl;
+                    child81= fork();  
+                    if(child81 == 0)  
+                    {  
+                        double auto_corr_D=0;
+                        //printf("child81 pid\n");
+                        memset (buf, ' ', sizeof(char) * (255));
+                        
+                        float corr_value81=xcorr(&d_upchirp81[0], &input[0], NULL, upchirp81_len,numbles_for_SF);
+                        
+                        close(file_fathertox81[OUTPUT]);
+                        returned_count = read(file_fathertox81[INPUT], buf, sizeof(buf));
+                        //printf("%d bytes of data received from spawned 81process: %s\n",returned_count, buf);
+                        auto_corr_D=atof(buf)/10000.0;
+                        
+                        returned_count=0;
+                        
+                        float dete_value=10*corr_value81/std::sqrt(auto_corr_D*auto_corr81);
+                        
+                        memset (buf, ' ', sizeof(char) * (255));
+                        sprintf(buf,"%.6f",dete_value);
+                        int i=0;
+                        for(i;i<255;i++){
+                            if(buf[i]==' '){
+                                break;
+                            }
+                        }
+
+                        close(file_x81tofather[INPUT]);
+                        write(file_x81tofather[OUTPUT], buf, i); 
+                        
+                        exit(0);  
+                    }  
+                    else  
+                    {  std::cout<<"child81: "<<child81<<std::endl;
+                        float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF);
+                        auto_corr_D=auto_corr_D*10000;
+                        //std::cout<<"f:auto_cott_d: "<<auto_corr_D<<std::endl;
+                        //printf("father pid\n");
+                        memset (buf, ' ', sizeof(char) * (255));
+                        sprintf(buf,"%.4f",auto_corr_D);
+                        int i=0;
+                        for(i;i<255;i++){
+                            if(buf[i]==' '){
+                                break;
+                            }  
+                        }
+                        write(file_fathertox71[OUTPUT], buf, i); 
+                        write(file_fathertox72[OUTPUT], buf, i);
+                        write(file_fathertox81[OUTPUT], buf, i); 
+                        
+                        while(num_end_pro!=3){
+                            if(!x71_flag){
+                                child=waitpid(child71,NULL,WNOHANG);
+                                if(child==child71){
+                                    printf("child71 end\n");
+                                    num_end_pro=num_end_pro+1;
+                                    x71_flag=true;
+                                    
+                                    memset (buf, ' ', sizeof(char) * (255));
+                                    returned_count = read(file_x71tofather[INPUT], buf, sizeof(buf));
+                                    if(returned_count!=0){
+                                        printf("%d bytes of data received from spawned process infather pid %s\n",returned_count, buf);
+                                    }
+                                    returned_count=0;
+                                }
+                            }
+                            if(!x72_flag){
+                                child=waitpid(child72,NULL,WNOHANG);
+                                if(child==child72){
+                                    printf("child72 end\n");
+                                    num_end_pro=num_end_pro+1;
+                                    x72_flag=true;
+                                    
+                                    memset (buf, ' ', sizeof(char) * (255));
+                                    returned_count = read(file_x72tofather[INPUT], buf, sizeof(buf));
+                                    if(returned_count!=0){
+                                        printf("%d bytes of data received from spawned process infather pid %s\n",returned_count, buf);
+                                    }
+                                    returned_count=0;
+                                }
+                            }
+                            if(!x81_flag){
+                                child=waitpid(child81,NULL,WNOHANG);
+                                if(child==child81){
+                                    printf("child81 end\n");
+                                    num_end_pro=num_end_pro+1;
+                                    x81_flag=true;
+                                    memset (buf, ' ', sizeof(char) * (255));
+                                    returned_count = read(file_x81tofather[INPUT], buf, sizeof(buf));
+                                    if(returned_count!=0){
+                                        printf("%d bytes of data received from spawned process infather pid %s\n",returned_count, buf);
+                                    }
+                                    returned_count=0;
+                                }
+                            }
+                        }
+                        //printf("out shanhuo\n");
+                        num_end_pro=0;
+                        x81_flag=false;
+                        x72_flag=false;
+                        x71_flag=false;
+                        //sleep(60);  
+                    }  
+                }  
+            } 
+            /*float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF);
+            int para_dex=0;
+            float dete_value=correlate_dete(&input[0],auto_corr_D,&para_dex);
+            if(dete_value>1.5){
+                std::cout<<"            dete_value: "<<dete_value<<" para_dex: "<<para_dex<<std::endl;
+            }*/
+            consume_each(numbles_for_SF);
+        
+            gettimeofday(&dwEnd,NULL);  
+            dwTime = 1000000*(dwEnd.tv_sec-dwStart.tv_sec)+(dwEnd.tv_usec-dwStart.tv_usec);  
+            printf("P_T: %ld\n",dwTime); 
+            /*if(dete_noise){
                 int para_dex=0;
                 float dete_value=correlate_dete(&input[0],auto_corr_D,&para_dex);
                 if(dete_value>1.5){
@@ -1345,7 +1554,7 @@ namespace gr {
             }
             gettimeofday(&dwEnd,NULL);  
             dwTime = 1000000*(dwEnd.tv_sec-dwStart.tv_sec)+(dwEnd.tv_usec-dwStart.tv_usec);  
-            printf("P_T: %ld\n",dwTime); 
+            printf("P_T: %ld\n",dwTime); */
             
             /*if(comeback_flag)
             {  

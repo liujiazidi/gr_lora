@@ -1,32 +1,14 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
+build/
+*.pyc
+*.ps
+*.pdf
+*nogit*
+*.cfile
+dev/
+apps/test-suites
+*.sigmf-data
+*.sigmf-meta
+apps/test-trace.*
+python/lora_decoder.py
+apps/test-results-paper
+store
