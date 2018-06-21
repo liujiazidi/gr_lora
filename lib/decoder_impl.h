@@ -112,6 +112,42 @@ namespace gr {
                 std::vector<uint8_t>  d_words_deshuffled;   ///< Vector containing the words after deshuffling.
                 std::vector<uint8_t>  d_words_dewhitened;   ///< Vector containing the words after dewhitening.
                 std::vector<uint8_t>  d_decoded;            ///< Vector containing the words after Hamming decode or the final decoded words.
+            
+                gr_complex * signala_ext71;
+                gr_complex * signalb_ext71;
+                gr_complex * out_shifted71;
+                gr_complex * outa71;
+                gr_complex * outb71;
+                gr_complex * out71;
+                gr_complex * result71;
+                gr_complex * outb_conj71;
+                fftplan pa71;
+                fftplan pb71;
+                fftplan px71;
+            
+                gr_complex * signala_ext71x;
+                gr_complex * signalb_ext71x;
+                gr_complex * out_shifted71x;
+                gr_complex * outa71x;
+                gr_complex * outb71x;
+                gr_complex * out71x;
+                gr_complex * result71x;
+                gr_complex * outb_conj71x;
+                fftplan pa71x;
+                fftplan pb71x;
+                fftplan px71x;
+            
+                gr_complex * signala_extd;
+                gr_complex * signalb_extd;
+                gr_complex * out_shiftedd;
+                gr_complex * outad;
+                gr_complex * outbd;
+                gr_complex * outd;
+                gr_complex * resultd;
+                gr_complex * outb_conjd;
+                fftplan pad;
+                fftplan pbd;
+                fftplan pxd;
 
                 std::ofstream d_debug_samples;              ///< Debug utputstream for complex values.
                 std::ofstream d_debug;                      ///< Outputstream for the debug log.
@@ -119,6 +155,7 @@ namespace gr {
                 fftplan d_q;                                ///< The LiquidDSP::FFT_Plan.
                 fftplan d_qr;                               ///< The LiquidDSP::FFT_Plan in reverse.
                 fec     d_h48_fec;                          ///< LiquidDSP Hamming 4/8 FEC.
+                gr_complex* p_map;
 
                 uint32_t      d_decim_factor;               ///< The number of samples (data points) in each bin.
                 float         d_cfo_estimation;             ///< An estimation for the current Center Frequency Offset.
@@ -183,7 +220,9 @@ namespace gr {
                 uint32_t         d_bw_old; 
             
                 float xcorr(const gr_complex * signala, const gr_complex * signalb, gr_complex * result, uint32_t Na,uint32_t Nb);
-            
+                float xcorr71x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
+                float xcorr71(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
+                float xcorrd(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
                 /**
                  *  \message handle lx
                  */

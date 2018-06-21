@@ -51,7 +51,7 @@ jmp_buf env;
 struct timeval dwStart;
 struct timeval dwEnd;
 unsigned long dwTime=0;
-pid_t child71, child72, child81, child;
+pid_t child71, child72, child81, child,child711;
 
 namespace gr {
     namespace lora {
@@ -65,7 +65,14 @@ namespace gr {
         {  
             printf("received signal %d !!!\n",sig);
              siglongjmp(env,1);
-        }  
+        }
+        
+        void handler(int sig)
+        {
+            printf("get a sig,num is %d\n",sig);
+            kill(child711,9);
+            signal(2,SIG_DFL);
+        }
 
         /**
          * The private constructor
@@ -94,10 +101,44 @@ namespace gr {
             set_init(samp_rate, bandwidth, sf, implicit, cr, crc, reduced_rate, disable_drift_correction);
                 
             //std::cout<<"try1"<<std::endl;
+            
+            resultd = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
+            signala_extd = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
+            signalb_extd = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
+            outad = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
+            outbd = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
+            outd = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
+            outb_conjd = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
+            pad = fft_create_plan(numbles_for_SF+numbles_for_SF-1, &signala_extd[0], &outad[0], LIQUID_FFT_FORWARD, 0);
+            pbd = fft_create_plan(numbles_for_SF+numbles_for_SF-1, &signalb_extd[0], &outbd[0], LIQUID_FFT_FORWARD, 0);
+            pxd = fft_create_plan(numbles_for_SF+numbles_for_SF-1, &outd[0], &resultd[0], LIQUID_FFT_BACKWARD, 0); 
                 
             upchirp71_len=ideal_chirps_num(2000000,125000,7);
             d_upchirp71.resize(upchirp71_len);
             build_ideal_chirps_sf_bw(2000000,125000,7,&d_upchirp71[0]);
+                
+            result71 = (gr_complex *) malloc(sizeof(gr_complex) * (upchirp71_len+upchirp71_len-1));
+            signala_ext71 = (gr_complex *) malloc(sizeof(gr_complex) * (upchirp71_len+upchirp71_len-1));
+            signalb_ext71 = (gr_complex *) malloc(sizeof(gr_complex) * (upchirp71_len+upchirp71_len-1));
+            outa71 = (gr_complex *) malloc(sizeof(gr_complex) * (upchirp71_len+upchirp71_len-1));
+            outb71 = (gr_complex *) malloc(sizeof(gr_complex) * (upchirp71_len+upchirp71_len-1));
+            out71 = (gr_complex *) malloc(sizeof(gr_complex) * (upchirp71_len+upchirp71_len-1));
+            outb_conj71 = (gr_complex *) malloc(sizeof(gr_complex) * (upchirp71_len+upchirp71_len-1));
+            pa71 = fft_create_plan(upchirp71_len+upchirp71_len-1, &signala_ext71[0], &outa71[0], LIQUID_FFT_FORWARD, 0);
+            pb71 = fft_create_plan(upchirp71_len+upchirp71_len-1, &signalb_ext71[0], &outb71[0], LIQUID_FFT_FORWARD, 0);
+            px71 = fft_create_plan(upchirp71_len+upchirp71_len-1, &out71[0], &result71[0], LIQUID_FFT_BACKWARD, 0); 
+                
+            result71x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp71_len-1));
+            signala_ext71x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp71_len-1));
+            signalb_ext71x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp71_len-1));
+            outa71x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp71_len-1));
+            outb71x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp71_len-1));
+            out71x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp71_len-1));
+            outb_conj71x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp71_len-1));
+            pa71x = fft_create_plan(numbles_for_SF+upchirp71_len-1, &signala_ext71x[0], &outa71x[0], LIQUID_FFT_FORWARD, 0);
+            pb71x = fft_create_plan(numbles_for_SF+upchirp71_len-1, &signalb_ext71x[0], &outb71x[0], LIQUID_FFT_FORWARD, 0);
+            px71x = fft_create_plan(numbles_for_SF+upchirp71_len-1, &out71x[0], &result71x[0], LIQUID_FFT_BACKWARD, 0); 
+                
             auto_corr71=xcorr(&d_upchirp71[0], &d_upchirp71[0], NULL,  upchirp71_len,upchirp71_len);
                 
             upchirp72_len=ideal_chirps_num(2000000,250000,7);
@@ -253,7 +294,7 @@ namespace gr {
         
         float decoder_impl::xcorr(const gr_complex * signala, const gr_complex * signalb, gr_complex * result=NULL,  uint32_t Na=2,uint32_t Nb=2)
         {
-            if(result==NULL){
+            /*if(result==NULL){
                 result = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
             }
             gr_complex * signala_ext = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
@@ -264,46 +305,105 @@ namespace gr {
             gr_complex * out = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
             gr_complex * outb_conj = (gr_complex *) malloc(sizeof(gr_complex) * (Na+Nb-1));
             
+            gettimeofday(&dwStart,NULL);
             fftplan pa = fft_create_plan(Na+Nb-1, &signala_ext[0], &outa[0], LIQUID_FFT_FORWARD, 0);
             fftplan pb = fft_create_plan(Na+Nb-1, &signalb_ext[0], &outb[0], LIQUID_FFT_FORWARD, 0);
             fftplan px = fft_create_plan(Na+Nb-1, &out[0], &result[0], LIQUID_FFT_BACKWARD, 0);
-
+            gettimeofday(&dwEnd,NULL);  
+            dwTime = 1000000*(dwEnd.tv_sec-dwStart.tv_sec)+(dwEnd.tv_usec-dwStart.tv_usec);  
+            printf("lxP_T: %ld\n",dwTime); */
+            
+            float result_value=0;
+            if((Na==numbles_for_SF)&&(Nb==numbles_for_SF)){
+                result_value=xcorrd(signala, signalb, Na,Nb);
+            }
+            if((Na==upchirp71_len)&&(Nb==numbles_for_SF)){
+                result_value=xcorr71x(signala, signalb, Na,Nb);
+            }
+            if((Na==upchirp71_len)&&(Nb==upchirp71_len)){
+                result_value=xcorr71(signala, signalb, Na,Nb);
+            }
             //zeropadding
-            memset (signala_ext, 0, sizeof(gr_complex) * (Nb - 1));
-            memcpy (signala_ext + (Nb - 1), signala, sizeof(gr_complex) * Na);
-            memcpy (signalb_ext, signalb, sizeof(gr_complex) * Nb);
-            memset (signalb_ext + Nb, 0, sizeof(gr_complex) * (Na - 1));
 
-            fft_execute(pa);
-            fft_execute(pb);
-  
-            volk_32fc_conjugate_32fc(outb_conj, outb, Na+Nb-1);
+            return result_value;
+        }
+        float decoder_impl::xcorr71(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb){
+            memset (signala_ext71, 0, sizeof(gr_complex) * (Nb - 1));
+            memcpy (signala_ext71 + (Nb - 1), signala, sizeof(gr_complex) * Na);
+            memcpy (signalb_ext71, signalb, sizeof(gr_complex) * Nb);
+            memset (signalb_ext71 + Nb, 0, sizeof(gr_complex) * (Na - 1));
+            
+            fft_execute(pa71);
+            fft_execute(pb71);
+            
+            volk_32fc_conjugate_32fc(outb_conj71, outb71, Na+Nb-1);
             gr_complex scale = 1.0/(Na+Nb-1);
             for (uint32_t i = 0; i < Na+Nb-1; i++)
-                out[i] = outa[i] * outb_conj[i] * scale;
+                out71[i] = outa71[i] * outb_conj71[i] * scale;
 
-            fft_execute(px);
+            fft_execute(px71);
 
-            fft_destroy_plan(pa);
-            fft_destroy_plan(pb);
-            fft_destroy_plan(px);
-
-            free(signala_ext);
-            free(signalb_ext);
-            free(out_shifted);
-            free(out);
-            free(outa);
-            free(outb);
-            free(outb_conj);
-
+            
             //fftw_cleanup();
             float * resule_float = (float *) malloc(sizeof(float) * (Na+Nb-1));
             memset (resule_float, 0, sizeof(float) * (Na+Nb-1));
-            volk_32fc_magnitude_squared_32f(resule_float,result,Na+Nb-1);
+            volk_32fc_magnitude_squared_32f(resule_float,result71,Na+Nb-1);
             float max_corr=*std::max_element(resule_float,resule_float+Na+Nb-1);
             
             return std::sqrt(max_corr);
         }
+        float decoder_impl::xcorr71x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb){
+            memset (signala_ext71x, 0, sizeof(gr_complex) * (Nb - 1));
+            memcpy (signala_ext71x + (Nb - 1), signala, sizeof(gr_complex) * Na);
+            memcpy (signalb_ext71x, signalb, sizeof(gr_complex) * Nb);
+            memset (signalb_ext71x + Nb, 0, sizeof(gr_complex) * (Na - 1));
+            
+            fft_execute(pa71x);
+            fft_execute(pb71x);
+            
+            volk_32fc_conjugate_32fc(outb_conj71x, outb71x, Na+Nb-1);
+            gr_complex scale = 1.0/(Na+Nb-1);
+            for (uint32_t i = 0; i < Na+Nb-1; i++)
+                out71x[i] = outa71x[i] * outb_conj71x[i] * scale;
+
+            fft_execute(px71x);
+
+            
+            //fftw_cleanup();
+            float * resule_float = (float *) malloc(sizeof(float) * (Na+Nb-1));
+            memset (resule_float, 0, sizeof(float) * (Na+Nb-1));
+            volk_32fc_magnitude_squared_32f(resule_float,result71x,Na+Nb-1);
+            float max_corr=*std::max_element(resule_float,resule_float+Na+Nb-1);
+            
+            return std::sqrt(max_corr);
+        }
+        float decoder_impl::xcorrd(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb){
+            memset (signala_extd, 0, sizeof(gr_complex) * (Nb - 1));
+            memcpy (signala_extd + (Nb - 1), signala, sizeof(gr_complex) * Na);
+            memcpy (signalb_extd, signalb, sizeof(gr_complex) * Nb);
+            memset (signalb_extd + Nb, 0, sizeof(gr_complex) * (Na - 1));
+            
+            fft_execute(pad);
+            fft_execute(pbd);
+            
+            volk_32fc_conjugate_32fc(outb_conjd, outbd, Na+Nb-1);
+            gr_complex scale = 1.0/(Na+Nb-1);
+            for (uint32_t i = 0; i < Na+Nb-1; i++)
+                outd[i] = outad[i] * outb_conjd[i] * scale;
+
+            fft_execute(pxd);
+
+            
+            //fftw_cleanup();
+            float * resule_float = (float *) malloc(sizeof(float) * (Na+Nb-1));
+            memset (resule_float, 0, sizeof(float) * (Na+Nb-1));
+            volk_32fc_magnitude_squared_32f(resule_float,resultd,Na+Nb-1);
+            float max_corr=*std::max_element(resule_float,resule_float+Na+Nb-1);
+            
+            return std::sqrt(max_corr);
+        }
+        
+
 
         void decoder_impl::build_ideal_chirps(void) {
             d_downchirp.resize(d_samples_per_symbol);
@@ -1340,36 +1440,104 @@ namespace gr {
             gettimeofday(&dwStart,NULL); 
             
             //static bool dete_noise=true;
-            static int num_end_pro=0;
-            bool x71_flag,x72_flag,x81_flag;
-            x71_flag=false;
-            x72_flag=false;
-            x81_flag=false;
+            //static int num_end_pro=0;
+            static bool start_first=true;
+            //bool x71_flag,x72_flag,x81_flag;
+            //x71_flag=false;
+            //x72_flag=false;
+            //x81_flag=false;
+            
+            int file_fathertox711[2];
+            
             int file_fathertox71[2];
-            int file_fathertox72[2];
-            int file_fathertox81[2];
-            int file_x71tofather[2]; 
-            int file_x72tofather[2]; 
-            int file_x81tofather[2]; 
-            pipe(file_fathertox71);
+            //int file_fathertox72[2];
+            //int file_fathertox81[2];
+            int file_x71tofather[2];
+            //int file_x72tofather[2]; 
+            //int file_x81tofather[2]; 
+            
+            /*pipe(file_fathertox71);
             pipe(file_fathertox72);
             pipe(file_fathertox81);
             pipe(file_x71tofather); 
             pipe(file_x72tofather); 
-            pipe(file_x81tofather); 
-            char buf[256]={' '};   
-            int returned_count=0; 
+            pipe(file_x81tofather); */
+            char buf[256]={' '};
+            int returned_count=0;
             //float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF);
             
-            child71= fork();
+            if(start_first){
+                signal(2,handler);
+                p_map=(gr_complex*)mmap(NULL,sizeof(gr_complex)*numbles_for_SF,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);
+                pipe(file_fathertox71);
+                //pipe(file_fathertox72);
+                //pipe(file_fathertox81);
+                pipe(file_x71tofather); 
+                //pipe(file_x72tofather); 
+                //pipe(file_x81tofather); 
+                pipe(file_fathertox711);
+                start_first=false;
+                child711= fork();
+                if(child711 == 0)
+                {
+                     //sleep(1);
+                    std::cout<<"child711: "<<child711<<std::endl;
+                    double auto_corr_D=0;
+                    while(1){
+                        close(file_fathertox711[OUTPUT]);
+                        printf("start read: %d\n",returned_count);
+                        memset (buf, ' ', sizeof(char) * (255));
+                        while(returned_count==0){
+                            returned_count = read(file_fathertox711[INPUT], buf, sizeof(buf));
+                        }
+                        //printf("%d bytes of data received from spawned 71process: %s\n",returned_count, buf);
+                        returned_count=0;
+                        memset (buf, ' ', sizeof(char) * (255));
+                        
+                        float corr_value711=xcorr(&d_upchirp71[0], &p_map[0], NULL, upchirp71_len,numbles_for_SF);//195ms
+                        
+                        //std::cout<<"corr_value711: "<<corr_value711<<std::endl;
+                        
+                        memset (buf, ' ', sizeof(char) * (255));
+                        close(file_fathertox71[OUTPUT]);
+                        //printf("wait d_auto: %d\n",returned_count);
+                        while(returned_count==0){
+                            returned_count = read(file_fathertox71[INPUT], buf, sizeof(buf));
+                        }
+                        auto_corr_D=atof(buf)/10000.0;
+                        //printf("%d bytes of data received from spawned 71process: %s\n",returned_count, buf);
+                        returned_count=0;
+
+                        float dete_value=10*corr_value711/std::sqrt(auto_corr_D*auto_corr71); 
+
+                        memset (buf, ' ', sizeof(char) * (255));
+                        sprintf(buf,"%.6f",dete_value);
+                        int i=0;
+                        for(i;i<255;i++){
+                            if(buf[i]==' '){
+                                break;
+                            }
+                        }
+                        //printf("x71tofather has send\n");
+                        close(file_x71tofather[INPUT]);
+                        write(file_x71tofather[OUTPUT], buf, i); 
+                        
+                    }
+                    exit(0);
+                }
+                else{
+                     std::cout<<"next: "<<std::endl;
+                }
+            }
+           
+            /*child71= fork();
             if(child71 == 0)
             {
                 double auto_corr_D=0;
                 //printf("child71 pid\n");
                 memset (buf, ' ', sizeof(char) * (255));
-                
                 float corr_value71=xcorr(&d_upchirp71[0], &input[0], NULL, upchirp71_len,numbles_for_SF);
-                
+                std::cout<<"corr_value71: "<<corr_value71<<std::endl;
                 close(file_fathertox71[OUTPUT]);
                 returned_count = read(file_fathertox71[INPUT], buf, sizeof(buf));
                 //printf("%d bytes of data received from spawned 71process: %s\n",returned_count, buf);
@@ -1460,9 +1628,16 @@ namespace gr {
                         
                         exit(0);  
                     }  
-                    else  
-                    {  std::cout<<"child81: "<<child81<<std::endl;
-                        float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF);
+                    else  */
+                    {  
+                        //std::cout<<"child81: "<<child81<<std::endl;
+                        memcpy (p_map, input, sizeof(gr_complex) * numbles_for_SF); 
+                        
+                        //printf("fathertox71, start has send\n");
+                        write(file_fathertox711[OUTPUT], "start", 5);
+                        
+                        float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF); 
+                        
                         auto_corr_D=auto_corr_D*10000;
                         //std::cout<<"f:auto_cott_d: "<<auto_corr_D<<std::endl;
                         //printf("father pid\n");
@@ -1474,11 +1649,25 @@ namespace gr {
                                 break;
                             }  
                         }
+                        //printf("fathertox71, D_auto has send %.4f\n",auto_corr_D);
                         write(file_fathertox71[OUTPUT], buf, i); 
-                        write(file_fathertox72[OUTPUT], buf, i);
-                        write(file_fathertox81[OUTPUT], buf, i); 
+                        //write(file_fathertox72[OUTPUT], buf, i);
+                        //write(file_fathertox81[OUTPUT], buf, i); 
                         
-                        while(num_end_pro!=3){
+                        memset (buf, ' ', sizeof(char) * (255));
+                        returned_count=0;
+                        //printf("father wait dete_value\n");
+                        while(returned_count==0){
+                            returned_count = read(file_x71tofather[INPUT], buf, sizeof(buf));
+                        }
+                        float lxdete_value=atof(buf);
+                        if(returned_count!=0){
+                            if(lxdete_value>2){
+                                printf("%d bytes of data received from spawned process infather pid %s\n",returned_count, buf);
+                            }
+                        }
+                        
+                        /*while(num_end_pro!=3){
                             if(!x71_flag){
                                 child=waitpid(child71,NULL,WNOHANG);
                                 if(child==child71){
@@ -1523,16 +1712,16 @@ namespace gr {
                                     returned_count=0;
                                 }
                             }
-                        }
+                        }*/
                         //printf("out shanhuo\n");
-                        num_end_pro=0;
-                        x81_flag=false;
-                        x72_flag=false;
-                        x71_flag=false;
+                        //num_end_pro=0;
+                        //x81_flag=false;
+                        //x72_flag=false;
+                       //x71_flag=false;
                         //sleep(60);  
                     }  
-                }  
-            } 
+               // }  
+            //} 
             /*float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF);
             int para_dex=0;
             float dete_value=correlate_dete(&input[0],auto_corr_D,&para_dex);
