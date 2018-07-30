@@ -31,6 +31,8 @@
 #include <lora/loraphy.h>
 #include <boost/circular_buffer.hpp>
 
+#define numbers_para 10
+
 namespace gr {
     namespace lora {
 
@@ -113,29 +115,57 @@ namespace gr {
                 std::vector<uint8_t>  d_words_dewhitened;   ///< Vector containing the words after dewhitening.
                 std::vector<uint8_t>  d_decoded;            ///< Vector containing the words after Hamming decode or the final decoded words.
             
-                gr_complex * signala_ext71;
-                gr_complex * signalb_ext71;
-                gr_complex * out_shifted71;
-                gr_complex * outa71;
-                gr_complex * outb71;
-                gr_complex * out71;
-                gr_complex * result71;
-                gr_complex * outb_conj71;
-                fftplan pa71;
-                fftplan pb71;
-                fftplan px71;
+                gr_complex * signala_ext72x;
+                gr_complex * signalb_ext72x;
+                gr_complex * out_shifted72x;
+                gr_complex * outa72x;
+                gr_complex * outb72x;
+                gr_complex * out72x;
+                gr_complex * result72x;
+                gr_complex * outb_conj72x;
+                fftplan pa72x;
+                fftplan pb72x;
+                fftplan px72x;
             
-                gr_complex * signala_ext71x;
-                gr_complex * signalb_ext71x;
-                gr_complex * out_shifted71x;
-                gr_complex * outa71x;
-                gr_complex * outb71x;
-                gr_complex * out71x;
-                gr_complex * result71x;
-                gr_complex * outb_conj71x;
-                fftplan pa71x;
-                fftplan pb71x;
-                fftplan px71x;
+                gr_complex * signala_ext82x;
+                gr_complex * signalb_ext82x;
+                gr_complex * out_shifted82x;
+                gr_complex * outa82x;
+                gr_complex * outb82x;
+                gr_complex * out82x;
+                gr_complex * result82x;
+                gr_complex * outa_conj82x;
+                fftplan pa82x;
+                fftplan pb82x;
+                fftplan px82x;
+                gr_complex * match_filter82_in;
+                gr_complex * match_filter82_out;
+                fftplan m82x;
+                 
+                int start_payload;
+                gr_complex * signala_ext92x;
+                gr_complex * signalb_ext92x;
+                gr_complex * out_shifted92x;
+                gr_complex * outa92x;
+                gr_complex * outb92x;
+                gr_complex * out92x;
+                gr_complex * result92x;
+                gr_complex * outb_conj92x;
+                fftplan pa92x;
+                fftplan pb92x;
+                fftplan px92x;
+            
+                gr_complex * signala_ext102x;
+                gr_complex * signalb_ext102x;
+                gr_complex * out_shifted102x;
+                gr_complex * outa102x;
+                gr_complex * outb102x;
+                gr_complex * out102x;
+                gr_complex * result102x;
+                gr_complex * outb_conj102x;
+                fftplan pa102x;
+                fftplan pb102x;
+                fftplan px102x;
             
                 gr_complex * signala_extd;
                 gr_complex * signalb_extd;
@@ -170,42 +200,52 @@ namespace gr {
                 std::vector<float>  ifreq_temp;
                 uint32_t corr_len;
                 std::vector<gr_complex> d_upchirp71;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp71;
                 uint32_t upchirp71_len;
                 float auto_corr71;
             
                 std::vector<gr_complex> d_upchirp72;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp72;
                 uint32_t upchirp72_len;
                 float auto_corr72;
             
                 std::vector<gr_complex> d_upchirp81;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp81;
                 uint32_t upchirp81_len;
                 float auto_corr81;
             
                 std::vector<gr_complex> d_upchirp82;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp82;
                 uint32_t upchirp82_len;
                 float auto_corr82;
             
                 std::vector<gr_complex> d_upchirp85;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp85;
                 uint32_t upchirp85_len;
                 float auto_corr85;
                 
                 std::vector<gr_complex> d_upchirp91;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp91;
                 uint32_t upchirp91_len;
                 float auto_corr91;
             
                 std::vector<gr_complex> d_upchirp92;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp92;
                 uint32_t upchirp92_len;
                 float auto_corr92;
             
                 std::vector<gr_complex> d_upchirp95;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp95;
                 uint32_t upchirp95_len;
                 float auto_corr95;
             
                 std::vector<gr_complex> d_upchirp102;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp102;
                 uint32_t upchirp102_len;
                 float auto_corr102;
             
                 std::vector<gr_complex> d_upchirp105;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_dnchirp105;
                 uint32_t upchirp105_len;
                 float auto_corr105;
             
@@ -216,13 +256,60 @@ namespace gr {
                 bool resetconfig;
                 pmt::pmt_t d_portha_de;
                 
+                gr_complex* upchirp_3;
+                
                 uint8_t          d_sf_old;                      ///< The Spreading Factor.
                 uint32_t         d_bw_old; 
             
-                float xcorr(const gr_complex * signala, const gr_complex * signalb, gr_complex * result, uint32_t Na,uint32_t Nb);
-                float xcorr71x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
-                float xcorr71(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
+                int file_fathertox711[2];
+                int file_fathertox71[2];
+                int file_x71tofather[2];
+                
+                int file_fathertox721[2];
+                int file_fathertox72[2];
+                int file_x72tofather[2];
+            
+                int file_fathertox811[2];
+                int file_fathertox81[2];
+                int file_x81tofather[2];
+                
+                int file_fathertox821[2];
+                int file_fathertox82[2];
+                int file_x82tofather[2];
+            
+                int file_fathertox851[2];
+                int file_fathertox85[2];
+                int file_x85tofather[2];
+            
+                int file_fathertox911[2];
+                int file_fathertox91[2];
+                int file_x91tofather[2];
+                
+                int file_fathertox921[2];
+                int file_fathertox92[2];
+                int file_x92tofather[2];
+            
+                int file_fathertox951[2];
+                int file_fathertox95[2];
+                int file_x95tofather[2];
+            
+                int file_fathertox1021[2];
+                int file_fathertox102[2];
+                int file_x102tofather[2];
+                
+                int file_fathertox1051[2];
+                int file_fathertox105[2];
+                int file_x105tofather[2];
+            
+                float xcorr(const gr_complex * signala, const gr_complex * signalb, gr_complex * result, uint32_t Na,uint32_t Nb,bool flag,uint32_t* dex_i);
+                float xcorr72x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb,bool flag);
+                float xcorr82x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb,bool flag,uint32_t* dex_i);
+                float xcorr92x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
+                float xcorr102x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
                 float xcorrd(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
+                void match_filter(const gr_complex * signala, const gr_complex * signalb,const gr_complex * signalc,float* value, uint32_t value_num,uint32_t Na);
+            
+                float lxdete_value[numbers_para];
                 /**
                  *  \message handle lx
                  */
@@ -242,6 +329,7 @@ namespace gr {
                  *  \brief  TODO
                  */
                 void fine_sync(const gr_complex* in_samples, uint32_t bin_idx, int32_t search_space);
+                void fine_synclx(const gr_complex* in_samples, uint32_t bin_idx, int32_t search_space);
 
                 /**
                  * \brief Schmidl-Cox autocorrelation approach for approximately detecting the preamble.
@@ -264,7 +352,7 @@ namespace gr {
                  */
                 void build_ideal_chirps_lx(float samp_rate,uint32_t bandwidth, uint8_t sf);
             
-                void build_ideal_chirps_sf_bw(float samp_rate,uint32_t bandwidth, uint8_t sf,gr_complex* d_upchirplx);
+                void build_ideal_chirps_sf_bw(float samp_rate,uint32_t bandwidth, uint8_t sf,gr_complex* d_upchirplx,gr_complex* d_dnchirplx);
                 uint32_t ideal_chirps_num(float samp_rate,uint32_t bandwidth, uint8_t sf);
                 /**
                  *  \brief  Debug method to dump the given complex array to the given file in binary format.
@@ -280,7 +368,7 @@ namespace gr {
                  */
                 void samples_to_file(const std::string path, const gr_complex *v, const uint32_t length, const uint32_t elem_size);
                 void samples_to_file_add(const std::string path, const uint8_t *v, const uint8_t *config,const uint32_t length);
-
+                void float_values_to_file(const std::string path, float *v, uint32_t length, uint32_t elem_size);
                 /**
                   *  \brief  Debug method to dump the given values array to a file in textual format.
                   *
@@ -421,6 +509,7 @@ namespace gr {
                  *          Whether the demodulated words were from the HDR.
                  */
                 bool demodulate(const gr_complex *samples, const bool is_header);
+                bool demodulatelx(const gr_complex *samples, const bool is_header);
 
                 /**
                  *  \brief  Deinterleave the raw demodulated words by reversing the interleave pattern.

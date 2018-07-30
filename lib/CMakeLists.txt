@@ -25,6 +25,7 @@ include(GrPlatform) #define LIB_SUFFIX
 include_directories(${Boost_INCLUDE_DIR})
 link_directories(${Boost_LIBRARY_DIRS})
 
+
 list(APPEND lora_sources
     decoder_impl.cc
     message_file_sink_impl.cc
@@ -41,7 +42,7 @@ if(NOT lora_sources)
 endif(NOT lora_sources)
 
 add_library(gnuradio-lora SHARED ${lora_sources})
-target_link_libraries(gnuradio-lora ${Boost_LIBRARIES} ${GNURADIO_ALL_LIBRARIES} liquid)
+target_link_libraries(gnuradio-lora ${Boost_LIBRARIES} ${GNURADIO_ALL_LIBRARIES} liquid ${EXTRA_LIBS})
 set_target_properties(gnuradio-lora PROPERTIES DEFINE_SYMBOL "gnuradio_lora_EXPORTS")
 
 if(APPLE)
