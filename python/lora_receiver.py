@@ -46,12 +46,13 @@ class lora_receiver(gr.hier_block2):
         self.conj          = conj
         self.disable_channelization = disable_channelization
         self.disable_drift_correction = disable_drift_correction
+        self.usrp_sptr     = None
 
         # Define blocks
         self.block_conj = gnuradio.blocks.conjugate_cc()
         self.channelizer = lora.channelizer(samp_rate, center_freq, channel_list, bandwidth, decimation)
         self.decoder = lora.decoder(samp_rate / decimation, bandwidth, sf, implicit, cr, crc, reduced_rate, disable_drift_correction)
-
+        
         # Messages
         self.message_port_register_hier_out('frames')
         #self.message_port_register_hier_in('hahaback_to')
@@ -94,3 +95,8 @@ class lora_receiver(gr.hier_block2):
     def set_center_freq(self, center_freq):
         self.center_freq = center_freq
         self.channelizer.set_center_freq(self.center_freq)
+    def set_usrp_sptr(self, usrp_sptr):
+        self.usrp_sptr = usrp_sptr
+        print self.usrp_sptr.get_samp_rate()
+        self.decoder.set_usrp_sptr(self.usrp_sptr)
+        

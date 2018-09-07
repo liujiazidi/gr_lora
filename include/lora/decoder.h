@@ -682,6 +682,16 @@
 #include <lora/api.h>
 #include <gnuradio/sync_block.h>
 
+/*#include <uhd/usrp/multi_usrp.hpp>
+typedef uhd::usrp::multi_usrp::sptr dev_sptr;*/
+#include <gnuradio/uhd/usrp_source.h>
+typedef boost::shared_ptr<gr::uhd::usrp_source> dev_sptr;
+/*namespace gr {
+  namespace uhd {
+        typedef boost::shared_ptr<usrp_source> dev_sptr;
+  }
+}*/
+
 namespace gr {
   namespace lora {
 
@@ -706,6 +716,7 @@ namespace gr {
 
       virtual void set_sf(uint8_t sf) = 0;
       virtual void set_samp_rate(float samp_rate) = 0;
+      virtual void set_usrp_sptr(dev_sptr usrp_sprt)=0; 
     };
 
   } // namespace lora

@@ -22,6 +22,23 @@
     #include "config.h"
 #endif
 
+#include <uhd/utils/paths.hpp>
+#include <uhd/utils/thread.hpp>
+#include <uhd/utils/safe_main.hpp>
+#include <uhd/usrp/multi_usrp.hpp>
+#include <uhd/usrp_clock/multi_usrp_clock.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
+#include <boost/format.hpp>
+#include <iostream>
+#include <complex>
+#include <string>
+#include <cmath>
+#include <ctime>
+#include <cstdlib>
+#include <chrono>
+#include <thread>
+
 #include <gnuradio/io_signature.h>
 #include <gnuradio/expj.h>
 #include <liquid/liquid.h>
@@ -39,6 +56,13 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/mman.h>
+
+#include <stdio.h> 
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <termios.h> 
+#include <errno.h>
+
 jmp_buf env;
 
 #include "dbugr.hpp"
@@ -48,8 +72,166 @@ jmp_buf env;
 #define sample_lx 1000000
 #define INPUT 0   
 #define OUTPUT 1  
+
+#define FALSElx -1
+#define TRUElx 0
+
 struct timeval dwStart;
 struct timeval dwEnd;
+
+struct termio
+{ 
+    unsigned short c_iflag;
+    unsigned short c_oflag;
+    unsigned short c_cflag; 
+    unsigned short c_lflag; 
+    unsigned char c_line; 
+    unsigned char c_cc[NCCS]; 
+};
+int speed_arr[] = {B38400, B19200, B9600, B4800, B2400, B1200, B300,B38400, B19200, B9600, B4800, B2400, B1200, B300, };
+int name_arr[] = {38400, 19200, 9600, 4800, 2400, 1200, 300, 38400,19200, 9600, 4800, 2400, 1200, 300, };
+void set_speed(int fd, int speed){
+    int i;
+    int status;
+    struct termios Opt;
+    tcgetattr(fd, &Opt);
+    for ( i= 0; i < sizeof(speed_arr) / sizeof(int); i++) {
+        if (speed == name_arr[i]) {
+        tcflush(fd, TCIOFLUSH);
+        cfsetispeed(&Opt, speed_arr[i]);
+        cfsetospeed(&Opt, speed_arr[i]);
+        status = tcsetattr(fd, TCSANOW, &Opt);
+        if (status != 0) {
+            perror("tcsetattr fd1");
+            return;
+        }
+    tcflush(fd,TCIOFLUSH);
+    }
+    }
+}
+
+/**
+*@brief 设置串口数据位，停止位和效验位
+*@param fd 类型 int 打开的串口文件句柄
+*@param databits 类型 int 数据位 取值 为 7 或者8
+*@param stopbits 类型 int 停止位 取值为 1 或者2
+*@param parity 类型 int 效验类型 取值为N,E,O,,S
+*/
+int set_Parity(int fd,int databits,int stopbits,int parity)
+{
+    struct termios options;
+    if ( tcgetattr( fd,&options) != 0) {
+        perror("SetupSerial 1");
+        return(FALSElx);
+    }
+    options.c_cflag &= ~CSIZE;
+    switch (databits) /*设置数据位数*/
+    {
+        case 7:
+            options.c_cflag |= CS7;
+            break;
+        case 8:
+            options.c_cflag |= CS8;
+            break;
+        default:
+            fprintf(stderr,"Unsupported data sizen"); 
+            return (FALSElx);
+    }
+    switch (parity)
+    {
+        case 'n':
+        case 'N':
+            options.c_cflag &= ~PARENB; /* Clear parity enable */
+            options.c_iflag &= ~INPCK; /* Enable parity checking */
+            break;
+        case 'o':
+        case 'O':
+            options.c_cflag |= (PARODD | PARENB); /* 设置为奇效验*/
+            options.c_iflag |= INPCK; /* Disnable parity checking */
+            break;
+        case 'e':
+        case 'E':
+            options.c_cflag |= PARENB; /* Enable parity */
+            options.c_cflag &= ~PARODD; /* 转换为偶效验*/
+            options.c_iflag |= INPCK; /* Disnable parity checking */
+            break;
+        case 'S':
+        case 's': /*as no parity*/
+            options.c_cflag &= ~PARENB;
+            options.c_cflag &= ~CSTOPB;break;
+        default:
+            fprintf(stderr,"Unsupported parityn");
+            return (FALSElx);
+    }
+    /* 设置停止位*/
+    switch (stopbits)
+    {
+        case 1:
+            options.c_cflag &= ~CSTOPB;
+            break;
+        case 2:
+            options.c_cflag |= CSTOPB;
+            break;
+        default:
+            fprintf(stderr,"Unsupported stop bitsn");
+            return (FALSElx);
+    }
+    /* Set input parity option */
+    if (parity != 'n')
+        options.c_iflag |= INPCK;
+    tcflush(fd,TCIFLUSH);
+    options.c_cc[VTIME] = 150; /* 设置超时15 seconds*/
+    options.c_cc[VMIN] = 0; /* Update the options and do it NOW */
+    if (tcsetattr(fd,TCSANOW,&options) != 0)
+    {
+        perror("SetupSerial 3");
+        return (FALSElx);
+    }
+    return (TRUElx);
+}
+int OpenDev(char *Dev)
+{
+    int fd = open( Dev, O_RDWR ); //| O_NOCTTY | O_NDELAY
+    if (-1 == fd)
+    {
+    perror("Can't Open Serial Port");
+    return -1;
+    }
+    else
+    return fd;
+}
+static int time_point_count=2;
+int write_uart(double TimePoint){
+    int fd=0;
+    int nread=0;
+    char buff[40];
+    sprintf(buff,"%d%c",time_point_count,'#');
+    sprintf(buff,"%.9lf%c",TimePoint,'A');
+    time_point_count=time_point_count+1;
+    int len=0;
+    for(int i=0;i<40;i++){
+        if(buff[i]=='A'){
+            len=i;
+            break;
+        }
+    }
+    char *dev = "/dev/ttyUSB0"; //串口二
+    fd = OpenDev(dev);
+    set_speed(fd,9600);
+    if (set_Parity(fd,8,1,'N') == FALSElx) {
+        printf("Set Parity Errorn");
+        exit (0);
+    }
+    printf("Start!\n");
+    //for(int i=0;i<10;i++) //循环读取数据
+    //{
+        nread = write(fd, buff,len);
+        printf("nread=%d\n",nread);
+    //}
+    close(fd);
+}
+
+
 unsigned long dwTime=0;
 pid_t child71, child72, child81, child82, child85, child91, child92, child95,child102, child105, child;
 
@@ -107,7 +289,7 @@ namespace gr {
                 d_dbg.attach();
             #endif
 
-                
+            usrp=NULL;
             set_init(samp_rate, bandwidth, sf, implicit, cr, crc, reduced_rate, disable_drift_correction);
                 
             //std::cout<<"try1"<<std::endl;
@@ -399,7 +581,22 @@ namespace gr {
 
             // Locally generated chirps
             build_ideal_chirps();
-
+            build_ideal_chirps_lx(16000000,125000, 7);
+        
+            result_timex = (gr_complex *) malloc(sizeof(gr_complex) * (d_upchirplx_len+d_upchirplx_len-1));
+            signala_time_intervalx = (gr_complex *) malloc(sizeof(gr_complex) * (d_upchirplx_len+d_upchirplx_len-1));
+            signalb_time_intervalx = (gr_complex *) malloc(sizeof(gr_complex) * (d_upchirplx_len+d_upchirplx_len-1));
+            outa_time_intervalx = (gr_complex *) malloc(sizeof(gr_complex) * (d_upchirplx_len+d_upchirplx_len-1));
+            outb_time_intervalx = (gr_complex *) malloc(sizeof(gr_complex) * (d_upchirplx_len+d_upchirplx_len-1));
+            out_time_intervalx = (gr_complex *) malloc(sizeof(gr_complex) * (d_upchirplx_len+d_upchirplx_len-1));
+            outa_conj_timex = (gr_complex *) malloc(sizeof(gr_complex) * (d_upchirplx_len+d_upchirplx_len-1));
+            pa_time_intervalx = fft_create_plan(d_upchirplx_len+d_upchirplx_len-1, &signala_time_intervalx[0], &outa_time_intervalx[0], LIQUID_FFT_FORWARD, 0);
+            pb_time_intervalx = fft_create_plan(d_upchirplx_len+d_upchirplx_len-1, &signalb_time_intervalx[0], &outb_time_intervalx[0], LIQUID_FFT_FORWARD, 0);
+            px_time_intervalx = fft_create_plan(d_upchirplx_len+d_upchirplx_len-1, &out_time_intervalx[0], &result_timex[0], LIQUID_FFT_BACKWARD, 0); 
+            
+            //double dex=find_mini_time_interval(&d_upchirp[0]);
+            //std::cout<<"Dex: "<<dex<<std::endl;
+        
             // FFT decoding preparations
             d_fft.resize(d_samples_per_symbol);
             d_mult_hf.resize(d_samples_per_symbol);
@@ -412,6 +609,19 @@ namespace gr {
             d_h48_fec = fec_create(fs, NULL);
 
     }
+        
+        double decoder_impl::find_mini_time_interval(gr_complex * signal){
+            d_datalx.resize(d_upchirplx_len);
+            for(uint32_t i=0;i<d_samples_per_symbol;i++){
+                d_datalx[i*16]=signal[i];
+                for(uint32_t j=1;j<16;j++){
+                    d_datalx[16*i+j]=0;
+                }
+            }
+            double dex=xcorr_mini_time_interval(&d_upchirplx[0],&d_datalx[0],d_upchirplx_len,d_upchirplx_len);
+            return dex-16384;//16384 is for 16*sample_rate(1M)
+        }
+        
         void decoder_impl::match_filter(const gr_complex * signala, const gr_complex * signalb,const gr_complex * signalc,float* value, uint32_t value_num,uint32_t Na=2)
         {
             float* p_value=(float *) malloc(sizeof(float) * (Na));
@@ -704,6 +914,52 @@ namespace gr {
             return std::sqrt(max_corr);
         }
         
+        float decoder_impl::xcorr_mini_time_interval(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb){
+            memcpy (signala_time_intervalx, signala, sizeof(gr_complex) * Na);
+            memset (signala_time_intervalx + Na, 0, sizeof(gr_complex) * (Nb-1));
+            memset (signalb_time_intervalx, 0, sizeof(gr_complex) * (Na-1));
+            memcpy (signalb_time_intervalx + (Na-1), signalb, sizeof(gr_complex) * Nb);
+            //std::cout<<"hello"<<std::endl;
+            fft_execute(pa_time_intervalx);
+            fft_execute(pb_time_intervalx);
+            
+            volk_32fc_conjugate_32fc(outa_conj_timex, outa_time_intervalx, Na+Nb-1);
+            gr_complex scale = 1.0/(Na+Nb-1);
+           // gr_complex cmxlx   = gr_complex(2.0f, 2.0f);
+            for (uint32_t i = 0; i < Na+Nb-1; i++)
+                out_time_intervalx[i] = outb_time_intervalx[i] * outa_conj_timex[i] * scale;
+            
+            fft_execute(px_time_intervalx);
+            
+            //fftw_cleanup();
+            float * resule_float = (float *) malloc(sizeof(float) * (Na+Nb-1));
+            memset (resule_float, 0, sizeof(float) * (Na+Nb-1));
+            volk_32fc_magnitude_squared_32f(resule_float,result_timex,Na+Nb-1);
+            float max_corr=*std::max_element(resule_float,resule_float+Na+Nb-1);
+            float limit_max=max_corr/4;
+            bool limit_flag=false;
+            uint32_t limit_count=0;
+            uint32_t dex_i=0;
+            for(uint32_t i=0;i<Na+Nb-1;i++)
+            {
+                if(*(resule_float+i)>limit_max){
+                    dex_i=i+1;
+                    limit_max=*(resule_float+i);
+                    limit_flag=true;
+                    limit_count=0;
+                }
+                else{
+                    if(limit_flag){
+                        limit_count=limit_count+1;
+                        if(limit_count>200){
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            return (float)dex_i;
+        }
 
 
         void decoder_impl::build_ideal_chirps(void) {
@@ -724,7 +980,7 @@ namespace gr {
             for (uint32_t i = 0u; i < d_samples_per_symbol; i++) {
                 // Width in number of samples = samples_per_symbol
                 // See https://en.wikipedia.org/wiki/Chirp#Linear
-                t = d_dt * i;
+                t = d_dt * i;//+d_dt/2.0; //for example delay
                 d_downchirp[i] = cmx * gr_expj(pre_dir * t * (f0 + T * t));
                 d_upchirp[i]   = cmx * gr_expj(pre_dir * t * (f0 + T * t) * -1.0f);
             }
@@ -743,12 +999,13 @@ namespace gr {
             memcpy(upchirp_3, tmp, sizeof(gr_complex) * (d_samples_per_symbol*3));
             instantaneous_frequency(tmp, &d_upchirp_ifreq_v[0], d_samples_per_symbol*3);
         }
+        
         void decoder_impl::build_ideal_chirps_lx(float samp_rate,uint32_t bandwidth, uint8_t sf) {         //lx
             double dt_lx=1.0f / samp_rate;
             double symbols_per_second_lx=(double)bandwidth / (1u << sf);
             uint32_t samples_per_symbol_lx=(uint32_t)(samp_rate / symbols_per_second_lx);
-            d_upchirplx.resize(samples_per_symbol_lx/4+1);
-            d_upchirplx_len=samples_per_symbol_lx/4+1;
+            d_upchirplx.resize(samples_per_symbol_lx);
+            d_upchirplx_len=samples_per_symbol_lx;
 
             const double T       = -0.5 * bandwidth * symbols_per_second_lx;
             const double f0      = (bandwidth / 2.0);
@@ -759,9 +1016,8 @@ namespace gr {
             for (uint32_t i = 0u; i < samples_per_symbol_lx;j++ ) {                
                 t = dt_lx * i;
                 d_upchirplx[j]   = cmx * gr_expj(pre_dir * t * (f0 + T * t) * -1.0f);
-                i=i+4;
+                i=i+1;
             }
-                      
         }
         
         uint32_t decoder_impl::ideal_chirps_num(float samp_rate,uint32_t bandwidth, uint8_t sf) {         //lx
@@ -871,6 +1127,28 @@ namespace gr {
                 (void) length;
                 (void) elem_size;
             #endif
+        }
+        void decoder_impl::time_to_file_add(const std::string path, double time_value ){
+            std::ofstream out_file;
+            out_file.open(path.c_str(), std::ios::out | std::ios::app);
+            char * pCh= new char[30];
+            uint8_t value_len=0;
+            std::cout << boost::format("time_value:  %.9f seconds") % (time_value)<<std::endl;
+            sprintf(pCh,"%.9lf%c",time_value,'A');
+            for(int i=0;i<30;i++)
+            {
+                if(*(pCh+i)=='A'){
+                    value_len=i;
+                    break;
+                }
+            }
+            
+            std::cout<<"pCh: "<<pCh<<std::endl;
+            out_file.write(&pCh[0],value_len);
+            out_file.write("\n",1);
+            out_file.write("\n",1);
+            out_file.close();
+            delete pCh;
         }
 
         void decoder_impl::samples_debug(const gr_complex *v, const uint32_t length) {
@@ -2719,6 +2997,15 @@ namespace gr {
                     //std::cout<<"                 lxdete_value[9]: "<<lxdete_value[9]<<std::endl;
                         //break;
                     //lx_flag=1;
+                    double time = usrp->get_time_now_to_real_secs(0);
+                    std::cout << boost::format("Now_Time::  %.9f seconds\n") % (time)<<std::endl;
+                    time=time+double(start_dex71/1000000.0);
+                    std::cout <<"start_uart"<<std::endl;
+                    
+                    write_uart(time);
+                    std::cout <<"end_uart"<<std::endl;
+                    time_to_file_add("/home/lx/decode_lora/time.txt",time);
+                    
                     if(lx_flag==0){
                         samples_to_file("/home/lx/decode_lora/data71.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
                         
@@ -3013,8 +3300,19 @@ namespace gr {
 
         void decoder_impl::set_samp_rate(const float samp_rate) {
             (void) samp_rate;
-            std::cerr << "[LoRa Decoder] WARNING : Setting the sample rate during execution is currently not supported." << std::endl
-                      << "Nothing set, kept SR of " << d_samples_per_second << "." << std::endl;
+            printf("HahA\n");
+            //std::cerr << "[LoRa Decoder] WARNING : Setting the sample rate during execution is currently not supported." << std::endl
+            //         << "Nothing set, kept SR of " << d_samples_per_second << "." << std::endl;
         }
+        void decoder_impl::set_usrp_sptr(dev_sptr usrp_sprt) {
+            printf("HahA1\n");
+            usrp=usrp_sprt;
+            //std::cout<<usrp_sprt->get_clock_rate(0)<<std::endl;
+            double time = usrp->get_time_now_to_real_secs(0);
+            std::cout << boost::format("Now_Time::  %.9f seconds\n") % (time)<<std::endl;
+            //printf("HahA2\n");
+            //time.get_real_secs();
+        }
+        
     } /* namespace lora */
 } /* namespace gr */

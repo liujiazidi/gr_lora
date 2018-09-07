@@ -31,7 +31,13 @@
 #include <lora/loraphy.h>
 #include <boost/circular_buffer.hpp>
 
+
 #define numbers_para 10
+
+#include <gnuradio/uhd/usrp_source.h>
+
+typedef boost::shared_ptr<gr::uhd::usrp_source> dev_sptr;
+
 
 namespace gr {
     namespace lora {
@@ -141,6 +147,17 @@ namespace gr {
                 gr_complex * match_filter82_in;
                 gr_complex * match_filter82_out;
                 fftplan m82x;
+            
+                gr_complex * signala_time_intervalx;
+                gr_complex * signalb_time_intervalx;
+                gr_complex * outa_time_intervalx;
+                gr_complex * outb_time_intervalx;
+                gr_complex * out_time_intervalx;
+                gr_complex * result_timex;
+                gr_complex * outa_conj_timex;
+                fftplan pa_time_intervalx;
+                fftplan pb_time_intervalx;
+                fftplan px_time_intervalx;
                  
                 int start_payload;
                 gr_complex * signala_ext92x;
@@ -250,6 +267,7 @@ namespace gr {
                 float auto_corr105;
             
                 std::vector<gr_complex> d_upchirplx;        ///< The complex ideal downchirp.
+                std::vector<gr_complex> d_datalx;        
                 uint32_t d_upchirplx_len;
                 std::vector<float>      d_upchirp_ifreqlx;    ///< The instantaneous frequency of the ideal upchirp.
                 bool comeback_flag;
@@ -308,8 +326,14 @@ namespace gr {
                 float xcorr102x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
                 float xcorrd(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
                 void match_filter(const gr_complex * signala, const gr_complex * signalb,const gr_complex * signalc,float* value, uint32_t value_num,uint32_t Na);
+                float xcorr_mini_time_interval(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
+            
+                double find_mini_time_interval(gr_complex * signal);
             
                 float lxdete_value[numbers_para];
+            
+                //USRP_ptr
+                dev_sptr usrp ;
                 /**
                  *  \message handle lx
                  */
@@ -369,6 +393,7 @@ namespace gr {
                 void samples_to_file(const std::string path, const gr_complex *v, const uint32_t length, const uint32_t elem_size);
                 void samples_to_file_add(const std::string path, const uint8_t *v, const uint8_t *config,const uint32_t length);
                 void float_values_to_file(const std::string path, float *v, uint32_t length, uint32_t elem_size);
+                void time_to_file_add(const std::string path, double time_value );
                 /**
                   *  \brief  Debug method to dump the given values array to a file in textual format.
                   *
@@ -672,6 +697,8 @@ namespace gr {
                  *          The new sample rate.
                  */
                 virtual void set_samp_rate(const float samp_rate);
+            
+                virtual void set_usrp_sptr(dev_sptr usrp_sprt);
         };
     } // namespace lora
 } // namespace gr

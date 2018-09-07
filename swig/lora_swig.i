@@ -13,6 +13,7 @@
 #include "lora/message_socket_sink.h"
 #include "lora/channelizer.h"
 #include "lora/controller.h"
+#include "lora/usrp_source.h"
 %}
 
 
