@@ -261,8 +261,8 @@ namespace gr {
             kill(child91,9);*/
             /*kill(child92,9);
             kill(child95,9);
-            kill(child102,9);
-            kill(child105,9);*/
+            kill(child102,9);*/
+            kill(child105,9);
             signal(2,SIG_DFL);
         }
 
@@ -404,7 +404,7 @@ namespace gr {
             outa92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
             outb92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
             out92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
-            outb_conj92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
+            outa_conj92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
             pa92x = fft_create_plan(numbles_for_SF+upchirp92_len-1, &signala_ext92x[0], &outa92x[0], LIQUID_FFT_FORWARD, 0);
             pb92x = fft_create_plan(numbles_for_SF+upchirp92_len-1, &signalb_ext92x[0], &outb92x[0], LIQUID_FFT_FORWARD, 0);
             px92x = fft_create_plan(numbles_for_SF+upchirp92_len-1, &out92x[0], &result92x[0], LIQUID_FFT_BACKWARD, 0); 
@@ -752,7 +752,7 @@ namespace gr {
                 result_value=xcorr82x(signala, signalb, Na,Nb,flag,dex_i);
             }
             if((Na==upchirp92_len)&&(Nb==numbles_for_SF)){
-                result_value=xcorr92x(signala, signalb, Na,Nb);
+                result_value=xcorr92x(signala, signalb, Na,Nb,flag,dex_i);
             }
             if((Na==upchirp102_len)&&(Nb==numbles_for_SF)){
                 result_value=xcorr102x(signala, signalb, Na,Nb);
@@ -839,27 +839,49 @@ namespace gr {
             
             return std::sqrt(max_corr);
         }
-        float decoder_impl::xcorr92x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb){
-            memset (signala_ext92x, 0, sizeof(gr_complex) * (Nb - 1));
-            memcpy (signala_ext92x + (Nb - 1), signala, sizeof(gr_complex) * Na);
-            memcpy (signalb_ext92x, signalb, sizeof(gr_complex) * Nb);
-            memset (signalb_ext92x + Nb, 0, sizeof(gr_complex) * (Na - 1));
+        float decoder_impl::xcorr92x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb,bool flag=false,uint32_t *dex_i=NULL){
+            memcpy (signala_ext92x, signala, sizeof(gr_complex) * Na);
+            memset (signala_ext92x + Na, 0, sizeof(gr_complex) * (Nb-1));
+            memset (signalb_ext92x, 0, sizeof(gr_complex) * (Na-1));
+            memcpy (signalb_ext92x + (Na-1), signalb, sizeof(gr_complex) * Nb);
             
             fft_execute(pa92x);
             fft_execute(pb92x);
             
-            volk_32fc_conjugate_32fc(outb_conj92x, outb92x, Na+Nb-1);
+            volk_32fc_conjugate_32fc(outa_conj92x, outa92x, Na+Nb-1);
             gr_complex scale = 1.0/(Na+Nb-1);
             for (uint32_t i = 0; i < Na+Nb-1; i++)
-                out92x[i] = outa92x[i] * outb_conj92x[i] * scale;
+                out92x[i] = outb92x[i] * outa_conj92x[i] * scale;
 
             fft_execute(px92x);
             
+            if(flag==true){
+                samples_to_file("/home/lx/decode_lora/data_corr105.bin", &result92x[0], Na+Nb-1, sizeof(gr_complex));
+            }
             //fftw_cleanup();
             float * resule_float = (float *) malloc(sizeof(float) * (Na+Nb-1));
             memset (resule_float, 0, sizeof(float) * (Na+Nb-1));
             volk_32fc_magnitude_squared_32f(resule_float,result92x,Na+Nb-1);
             float max_corr=*std::max_element(resule_float,resule_float+Na+Nb-1);
+            float limit_max=max_corr/4;
+            bool limit_flag=false;
+            uint32_t limit_count=0;
+            for(uint32_t i=0;i<Na+Nb-1;i++)
+            {
+                if(*(resule_float+i)>limit_max){
+                    *dex_i=i+1;
+                    limit_max=*(resule_float+i);
+                    limit_flag=true;
+                }
+                else{
+                    if(limit_flag){
+                        limit_count=limit_count+1;
+                        if(limit_count>30){
+                            break;
+                        }
+                    }
+                }
+            }
             
             return std::sqrt(max_corr);
         }
@@ -1709,7 +1731,7 @@ namespace gr {
             if(bin_idx>800)
                 bin_idx=bin_idx-896;
             //uint32_t bin_idx = get_shift_fft(samples);
-            std::cout<<"bin_idx: "<< (float)bin_idx<<std::endl;
+            //std::cout<<"bin_idx: "<< (float)bin_idx<<std::endl;//9.7 lx value2,too
             if(d_enable_fine_sync){
                 fine_synclx(samples, bin_idx, std::max(d_decim_factor / 4u, 2u));
             //std::cout<<"demodulate d_fine_sync: "<<d_fine_sync<<std::endl;
@@ -2126,14 +2148,16 @@ namespace gr {
             x91_flag=false;
             x92_flag=false;
             x95_flag=false;
-            x102_flag=false;
-            x105_flag=false;*/
+            x102_flag=false;*/
+            x105_flag=false;
+            static uint8_t filename_count=0;
             
             
             char buf[256]={' '};
             char buf1[15]={' '};
             char buf2[10]={' '};
             uint32_t start_dex71=0;
+            uint32_t start_dex105=0;
             int returned_count=0;
             static int lx_flag=0;
             
@@ -2162,7 +2186,7 @@ namespace gr {
                         
                         uint32_t dex_71=0;
                         float corr_value711=xcorr(&d_upchirp71[0], &p_map[0], NULL, upchirp71_len,numbles_for_SF,true,&dex_71);
-                        
+                        //std::cout<<"child_71: "<<corr_value711<<std::endl;
                         //std::cout<<"dex_71: "<<(float)dex_71<<std::endl;
                         
                         memset (buf, ' ', sizeof(char) * (255));
@@ -2521,12 +2545,13 @@ namespace gr {
 
                                                     }
                                                     exit(0);
-                                                }
+                                                }*/
                                                 else{
                                                     child105= fork();
                                                     if(child105== 0)
                                                     {
                                                         double auto_corr_D=0;
+                                                        std::cout<<"Hello child 105 start!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
                                                         while(1){
                                                             //******wait start****
                                                             close(file_fathertox1051[OUTPUT]);
@@ -2537,7 +2562,10 @@ namespace gr {
                                                             //******calculate xcorr****
                                                             returned_count=0;
                                                             memset (buf, ' ', sizeof(char) * (255));
-                                                            float corr_value105=xcorr(&d_upchirp105[0], &p_map[0], NULL, upchirp105_len,numbles_for_SF);
+                                                            
+                                                            uint32_t dex_105=0;
+                                                            float corr_value105=xcorr(&d_upchirp105[0], &p_map[0], NULL, upchirp105_len,numbles_for_SF,true,&dex_105);//6145
+                                                            //std::cout<<"child_105: "<<corr_value105<<std::endl;
                                                             //******wait data_auto_corr for normalized****
                                                             memset (buf, ' ', sizeof(char) * (255));
                                                             close(file_fathertox105[OUTPUT]);
@@ -2550,6 +2578,9 @@ namespace gr {
                                                             //******send normalized dete_value to father process****
                                                             memset (buf, ' ', sizeof(char) * (255));
                                                             sprintf(buf,"%.6f",dete_value);
+                                                            sprintf(buf,"%s%c",buf,'+');
+                                                            sprintf(buf,"%s%d",buf,dex_105);
+                                                            sprintf(buf,"%s%c",buf,'#');
                                                             int i=0;
                                                             for(i;i<255;i++){
                                                                 if(buf[i]==' '){
@@ -2563,7 +2594,7 @@ namespace gr {
                                                         exit(0);
                                                     }
                                                 }
-                                            }
+                                           /* }
                                         }
                                     }*/
                               //  }
@@ -2641,7 +2672,7 @@ namespace gr {
                         match_filter(&d_dnchirp71[0], &d_upchirp71[0], &input[0],value, count,upchirp71_len);
                         uint32_t i=0;
                         for(i=0;i<count;i++){
-                            std::cout<<"value2["<<i<<"]: "<<value[i]<<std::endl;
+                           // std::cout<<"value2["<<i<<"]: "<<value[i]<<std::endl;
 
                             if (value[i]==1023) {
                                 if(value[i+1]==1023){
@@ -2799,8 +2830,8 @@ namespace gr {
                 write(file_fathertox911[OUTPUT], "start", 5);*/
                 /*write(file_fathertox921[OUTPUT], "start", 5);
                 write(file_fathertox951[OUTPUT], "start", 5);
-                write(file_fathertox1021[OUTPUT], "start", 5);
-                write(file_fathertox1051[OUTPUT], "start", 5);*/
+                write(file_fathertox1021[OUTPUT], "start", 5);*/
+                write(file_fathertox1051[OUTPUT], "start", 5);
                 gettimeofday(&dwStart,NULL); 
                 gr_complex result;
                 //float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF); 
@@ -2828,14 +2859,14 @@ namespace gr {
                 write(file_fathertox91[OUTPUT], buf, i);*/
                 /*write(file_fathertox92[OUTPUT], buf, i);
                 write(file_fathertox95[OUTPUT], buf, i);
-                write(file_fathertox102[OUTPUT], buf, i);
-                write(file_fathertox105[OUTPUT], buf, i);*/
+                write(file_fathertox102[OUTPUT], buf, i);*/
+                write(file_fathertox105[OUTPUT], buf, i);
 
                 memset (buf, ' ', sizeof(char) * (255));
                 returned_count=0;
                 //printf("father wait dete_value\n");
 
-                while(num_end_pro!=1){
+                while(num_end_pro!=2){
 
                     if(!x71_flag){
                         returned_count = read(file_x71tofather[INPUT], buf, sizeof(buf));
@@ -2870,7 +2901,7 @@ namespace gr {
                             //std::cout<<"                                             1"<<std::endl;
                         }
                     }
-                     if(!x72_flag){
+                     /*if(!x72_flag){
                         returned_count = read(file_x72tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[1]=atof(buf);
@@ -2883,7 +2914,7 @@ namespace gr {
                             //sleep(60);
                         }
                     }
-                  /*if(!x81_flag){
+                  if(!x81_flag){
                         returned_count = read(file_x81tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[2]=atof(buf);
@@ -2966,23 +2997,40 @@ namespace gr {
                             memset (buf, ' ', sizeof(char) * (255));
                             //std::cout<<"                                             9"<<std::endl;
                         }
-                    }
+                    }*/
                     if(!x105_flag){
                         returned_count = read(file_x105tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
-                            lxdete_value[9]=atof(buf);
-
+                            int receive_part=1;
+                            for(int i=0;i<255;i++){
+                                //std::cout<<"buf:"<<i<<" "<<buf[i]<<std::endl;
+                                if(*(buf+i)=='+'){
+                                    receive_part=i;
+                                    continue;
+                                }
+                                if(*(buf+i)=='#'){
+                                    break;
+                                }
+                                if(receive_part==1){
+                                    *(buf1+i)=*(buf+i);
+                                }
+                                else{
+                                    *(buf2+i-receive_part)=*(buf+i);
+                                }
+                            }
+                            lxdete_value[9]=atof(buf1);
+                            start_dex105=atof(buf2);
                             returned_count=0;
                             x105_flag=true;
                             num_end_pro=num_end_pro+1;
                             memset (buf, ' ', sizeof(char) * (255));
                         }
-                    }*/
+                    }
                     //std::cout<<"num_end_pro: "<<num_end_pro<<std::endl;
                 }
                 //std::cout<<"lxdete_value[0]: "<<lxdete_value[0]<<std::endl;
-                samples_to_file("/home/lx/decode_lora/data71.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
-                if((lxdete_value[0]>1.5)){
+                //samples_to_file("/home/lx/decode_lora/data71.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
+                if((lxdete_value[0]>1.5||lxdete_value[9]>1.5)){
                 //for(int i=0;i<10;i++){
                    // if(lxdete_value[i]>2){
                     std::cout<<"                 lxdete_value[0]: "<<lxdete_value[0]<<std::endl;
@@ -2994,27 +3042,51 @@ namespace gr {
                     //std::cout<<"                 lxdete_value[6]: "<<lxdete_value[6]<<std::endl;
                     //std::cout<<"                 lxdete_value[7]: "<<lxdete_value[7]<<std::endl;
                     //std::cout<<"                 lxdete_value[8]: "<<lxdete_value[8]<<std::endl;
-                    //std::cout<<"                 lxdete_value[9]: "<<lxdete_value[9]<<std::endl;
-                        //break;
+                    std::cout<<"                 lxdete_value[9]: "<<lxdete_value[9]<<std::endl;
+                    //break;
                     //lx_flag=1;
-                    double time = usrp->get_time_now_to_real_secs(0);
-                    std::cout << boost::format("Now_Time::  %.9f seconds\n") % (time)<<std::endl;
-                    time=time+double(start_dex71/1000000.0);
-                    std::cout <<"start_uart"<<std::endl;
-                    
-                    write_uart(time);
-                    std::cout <<"end_uart"<<std::endl;
-                    time_to_file_add("/home/lx/decode_lora/time.txt",time);
-                    
-                    if(lx_flag==0){
-                        samples_to_file("/home/lx/decode_lora/data71.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
+                    if(lxdete_value[9]>1.5){
+                        if(filename_count==0){
+                            samples_to_file("/home/lx/decode_lora/data105_0.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
+                        }
+                        if(filename_count==1){
+                            samples_to_file("/home/lx/decode_lora/data105_1.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
+                        }
+                        if(filename_count==2){
+                            samples_to_file("/home/lx/decode_lora/data105_2.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
+                        }
+                        if(filename_count==3){
+                            samples_to_file("/home/lx/decode_lora/data105_3.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
+                        }
+                        if(filename_count==4){
+                            samples_to_file("/home/lx/decode_lora/data105_4.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
+                        }
+                        //samples_to_file(file_name_105, &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
+                        std::cout <<"receive_ed data105"<<std::endl;
+                        consume_each(numbles_for_SF);
+                        filename_count=filename_count+1;
+                        if(filename_count==5){
+                            while(1);
+                        }
                         
-                        consume_each(start_dex71-1024);
-                        d_corr_fails = 0u;
-                        //sleep(60);
-                        
+                        /*double time = usrp->get_time_now_to_real_secs(0);
+                        std::cout << boost::format("Now_Time::  %.9f seconds\n") % (time)<<std::endl;
+                        time=time+double(start_dex105/1000000.0);
+                        std::cout <<"start_uart"<<std::endl;
+                        write_uart(time);
+                        std::cout <<"end_uart"<<std::endl;
+                        time_to_file_add("/home/lx/decode_lora/time.txt",time);*/
                     }
-                    lx_flag=lx_flag+1;
+                    else{
+                        if(lx_flag==0){
+                            samples_to_file("/home/lx/decode_lora/data71.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
+                            consume_each(start_dex71-1024);
+                            d_corr_fails = 0u;
+                            //sleep(60);
+
+                        }
+                        lx_flag=lx_flag+1;
+                    }
                     /*if(lx_flag==2){
                         samples_to_file("/home/lx/decode_lora/data72.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
                         uint32_t count=(numbles_for_SF-numbles_for_SF%upchirp71_len)/upchirp71_len;
@@ -3054,7 +3126,7 @@ namespace gr {
                 }*/
                 //consume_each(numbles_for_SF);
 
-                gettimeofday(&dwEnd,NULL);  
+                gettimeofday(&dwEnd,NULL);
                 dwTime = 1000000*(dwEnd.tv_sec-dwStart.tv_sec)+(dwEnd.tv_usec-dwStart.tv_usec);  
                // printf("P_T: %ld\n",dwTime); 
             }
