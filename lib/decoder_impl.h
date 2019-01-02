@@ -159,7 +159,7 @@ namespace gr {
                 fftplan pb_time_intervalx;
                 fftplan px_time_intervalx;
                  
-                int start_payload;
+                
                 gr_complex * signala_ext92x;
                 gr_complex * signalb_ext92x;
                 gr_complex * out_shifted92x;
@@ -167,7 +167,7 @@ namespace gr {
                 gr_complex * outb92x;
                 gr_complex * out92x;
                 gr_complex * result92x;
-                gr_complex * outa_conj92x;
+                gr_complex * outb_conj92x;
                 fftplan pa92x;
                 fftplan pb92x;
                 fftplan px92x;
@@ -322,15 +322,18 @@ namespace gr {
                 float xcorr(const gr_complex * signala, const gr_complex * signalb, gr_complex * result, uint32_t Na,uint32_t Nb,bool flag,uint32_t* dex_i);
                 float xcorr72x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb,bool flag);
                 float xcorr82x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb,bool flag,uint32_t* dex_i);
-                float xcorr92x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb,bool flag,uint32_t* dex_i);
+                float xcorr92x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
                 float xcorr102x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
                 float xcorrd(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
                 void match_filter(const gr_complex * signala, const gr_complex * signalb,const gr_complex * signalc,float* value, uint32_t value_num,uint32_t Na);
                 float xcorr_mini_time_interval(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb);
             
-                double find_mini_time_interval(gr_complex * signal);
+                double find_mini_time_interval(const gr_complex * signal);
             
                 float lxdete_value[numbers_para];
+                
+                bool program_start_all_lx;
+                double time_uart; 
             
                 //USRP_ptr
                 dev_sptr usrp ;

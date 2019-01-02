@@ -215,7 +215,7 @@ int write_uart(double TimePoint){
             break;
         }
     }
-    char *dev = "/dev/ttyUSB0"; //串口二
+    char *dev = "/dev/ttyUSB1"; //串口二
     fd = OpenDev(dev);
     set_speed(fd,9600);
     if (set_Parity(fd,8,1,'N') == FALSElx) {
@@ -261,8 +261,8 @@ namespace gr {
             kill(child91,9);*/
             /*kill(child92,9);
             kill(child95,9);
-            kill(child102,9);*/
-            kill(child105,9);
+            kill(child102,9);
+            kill(child105,9);*/
             signal(2,SIG_DFL);
         }
 
@@ -294,7 +294,6 @@ namespace gr {
                 
             //std::cout<<"try1"<<std::endl;
             gr_complex result=0;
-                start_payload=0;
                 
             resultd = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
             signala_extd = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+numbles_for_SF-1));
@@ -404,7 +403,7 @@ namespace gr {
             outa92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
             outb92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
             out92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
-            outa_conj92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
+            outb_conj92x = (gr_complex *) malloc(sizeof(gr_complex) * (numbles_for_SF+upchirp92_len-1));
             pa92x = fft_create_plan(numbles_for_SF+upchirp92_len-1, &signala_ext92x[0], &outa92x[0], LIQUID_FFT_FORWARD, 0);
             pb92x = fft_create_plan(numbles_for_SF+upchirp92_len-1, &signalb_ext92x[0], &outb92x[0], LIQUID_FFT_FORWARD, 0);
             px92x = fft_create_plan(numbles_for_SF+upchirp92_len-1, &out92x[0], &result92x[0], LIQUID_FFT_BACKWARD, 0); 
@@ -607,10 +606,12 @@ namespace gr {
             // Hamming coding
             fec_scheme fs = LIQUID_FEC_HAMMING84;
             d_h48_fec = fec_create(fs, NULL);
+            program_start_all_lx=true;
+			time_uart=0.0;
 
     }
         
-        double decoder_impl::find_mini_time_interval(gr_complex * signal){
+        double decoder_impl::find_mini_time_interval(const gr_complex * signal){
             d_datalx.resize(d_upchirplx_len);
             for(uint32_t i=0;i<d_samples_per_symbol;i++){
                 d_datalx[i*16]=signal[i];
@@ -635,7 +636,6 @@ namespace gr {
             int max_count=0;
             bool max_error=false;
             float max_old=0;
-            
             //std::cout<<(float)value_num<<" "<<(float)Na<<std::endl;
             for(uint32_t i=0;i<value_num;i++){
                 //std::cout<<"i: "<<i<<std::endl;
@@ -657,26 +657,19 @@ namespace gr {
                         value[i]=k;
                     }
                 }
-                if(start_payload==1){
-                    std::cout<<"value: "<<value[i]<<std::endl;
-                    float_values_to_file("/home/lx/decode_lora/matchfilter_fl.bin", p_sqrt, Na, sizeof(float));
-                    start_payload=2;
-                }
+                //std::cout<<"match_value["<<i<<"]: "<<(float)value[i]<<std::endl;
                 if(max_error){
-                    if((value[i]==1023)||(value[i]==1022)||(value[i]==1021)||(value[i]==1020)){
-                        value[i]=1023;
-                        max_error=false;
+					if(i!=0){
+						if((value[i]==value[i-1])){
+							//std::cout<<"error value["<<i<<"/"<<i-1<<"]: "<<value[i]<<value[i-1]<<std::endl;
+								value[i]=1023;
+								value[i-1]=1023;
+						}
+					} 
+						max_error=false;
                         max=0;
                         continue;
-                    }
-                    else{
-                        max_error=false;
-                        value[i]=max_old;
-                        max=0;
-                        //float_values_to_file("/home/lx/decode_lora/matchfilter.bin", p_sqrt, Na, sizeof(float));
-                        continue;
-                    }
-                    
+                                       
                 }
                 else{
                     max_old=value[i];
@@ -752,7 +745,7 @@ namespace gr {
                 result_value=xcorr82x(signala, signalb, Na,Nb,flag,dex_i);
             }
             if((Na==upchirp92_len)&&(Nb==numbles_for_SF)){
-                result_value=xcorr92x(signala, signalb, Na,Nb,flag,dex_i);
+                result_value=xcorr92x(signala, signalb, Na,Nb);
             }
             if((Na==upchirp102_len)&&(Nb==numbles_for_SF)){
                 result_value=xcorr102x(signala, signalb, Na,Nb);
@@ -780,7 +773,7 @@ namespace gr {
 
             fft_execute(px72x);
             if(flag==true){
-                samples_to_file("/home/lx/decode_lora/data_corr71.bin", &result72x[0], Na+Nb-1, sizeof(gr_complex));
+                //samples_to_file("/home/lx/decode_lora/data_corr71.bin", &result72x[0], Na+Nb-1, sizeof(gr_complex));
             }
             
             //fftw_cleanup();
@@ -810,7 +803,7 @@ namespace gr {
             fft_execute(px82x);
             
             if(flag==true){
-                samples_to_file("/home/lx/decode_lora/data_corr71.bin", &result82x[0], Na+Nb-1, sizeof(gr_complex));
+                //samples_to_file("/home/lx/decode_lora/data_corr71.bin", &result82x[0], Na+Nb-1, sizeof(gr_complex));
             }
             //fftw_cleanup();
             float * resule_float = (float *) malloc(sizeof(float) * (Na+Nb-1));
@@ -839,49 +832,27 @@ namespace gr {
             
             return std::sqrt(max_corr);
         }
-        float decoder_impl::xcorr92x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb,bool flag=false,uint32_t *dex_i=NULL){
-            memcpy (signala_ext92x, signala, sizeof(gr_complex) * Na);
-            memset (signala_ext92x + Na, 0, sizeof(gr_complex) * (Nb-1));
-            memset (signalb_ext92x, 0, sizeof(gr_complex) * (Na-1));
-            memcpy (signalb_ext92x + (Na-1), signalb, sizeof(gr_complex) * Nb);
+        float decoder_impl::xcorr92x(const gr_complex * signala, const gr_complex * signalb,uint32_t Na,uint32_t Nb){
+            memset (signala_ext92x, 0, sizeof(gr_complex) * (Nb - 1));
+            memcpy (signala_ext92x + (Nb - 1), signala, sizeof(gr_complex) * Na);
+            memcpy (signalb_ext92x, signalb, sizeof(gr_complex) * Nb);
+            memset (signalb_ext92x + Nb, 0, sizeof(gr_complex) * (Na - 1));
             
             fft_execute(pa92x);
             fft_execute(pb92x);
             
-            volk_32fc_conjugate_32fc(outa_conj92x, outa92x, Na+Nb-1);
+            volk_32fc_conjugate_32fc(outb_conj92x, outb92x, Na+Nb-1);
             gr_complex scale = 1.0/(Na+Nb-1);
             for (uint32_t i = 0; i < Na+Nb-1; i++)
-                out92x[i] = outb92x[i] * outa_conj92x[i] * scale;
+                out92x[i] = outa92x[i] * outb_conj92x[i] * scale;
 
             fft_execute(px92x);
             
-            if(flag==true){
-                samples_to_file("/home/lx/decode_lora/data_corr105.bin", &result92x[0], Na+Nb-1, sizeof(gr_complex));
-            }
             //fftw_cleanup();
             float * resule_float = (float *) malloc(sizeof(float) * (Na+Nb-1));
             memset (resule_float, 0, sizeof(float) * (Na+Nb-1));
             volk_32fc_magnitude_squared_32f(resule_float,result92x,Na+Nb-1);
             float max_corr=*std::max_element(resule_float,resule_float+Na+Nb-1);
-            float limit_max=max_corr/4;
-            bool limit_flag=false;
-            uint32_t limit_count=0;
-            for(uint32_t i=0;i<Na+Nb-1;i++)
-            {
-                if(*(resule_float+i)>limit_max){
-                    *dex_i=i+1;
-                    limit_max=*(resule_float+i);
-                    limit_flag=true;
-                }
-                else{
-                    if(limit_flag){
-                        limit_count=limit_count+1;
-                        if(limit_count>30){
-                            break;
-                        }
-                    }
-                }
-            }
             
             return std::sqrt(max_corr);
         }
@@ -1002,7 +973,7 @@ namespace gr {
             for (uint32_t i = 0u; i < d_samples_per_symbol; i++) {
                 // Width in number of samples = samples_per_symbol
                 // See https://en.wikipedia.org/wiki/Chirp#Linear
-                t = d_dt * i;//+d_dt/2.0; //for example delay
+                t = d_dt * i;//+d_dt/4.0; //for example delay
                 d_downchirp[i] = cmx * gr_expj(pre_dir * t * (f0 + T * t));
                 d_upchirp[i]   = cmx * gr_expj(pre_dir * t * (f0 + T * t) * -1.0f);
             }
@@ -1731,7 +1702,7 @@ namespace gr {
             if(bin_idx>800)
                 bin_idx=bin_idx-896;
             //uint32_t bin_idx = get_shift_fft(samples);
-            //std::cout<<"bin_idx: "<< (float)bin_idx<<std::endl;//9.7 lx value2,too
+            //std::cout<<"bin_idx: "<< (float)bin_idx<<std::endl;
             if(d_enable_fine_sync){
                 fine_synclx(samples, bin_idx, std::max(d_decim_factor / 4u, 2u));
             //std::cout<<"demodulate d_fine_sync: "<<d_fine_sync<<std::endl;
@@ -2063,21 +2034,16 @@ namespace gr {
                             std::cout<<"jilu"<<std::endl;
                             samples_to_file("/home/lx/decode_lora/data2.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
                         }
-
                         if(SF!=0){
                             build_ideal_chirps_lx(sample_lx,125000, SF-1);
                             corr_value1=correlate_detSFBW_lx(&out_sample_d4[0], corr_len);
-
                             build_ideal_chirps_lx(sample_lx,250000, SF);
                             corr_value2=correlate_detSFBW_lx(&out_sample_d4[0], corr_len);
-
                             build_ideal_chirps_lx(sample_lx,500000, SF+1);
                             corr_value3=correlate_detSFBW_lx(&out_sample_d4[0], corr_len);
-
                             std::cout<<"1 corr_value: "<<corr_value1<<std::endl;
                             std::cout<<"2 corr_value: "<<corr_value2<<std::endl;
                             std::cout<<"3 corr_value: "<<corr_value3<<std::endl;
-
                             if(corr_value1>corr_value2){
                                 if(corr_value1>corr_value3){
                                     SF=SF-1;
@@ -2101,19 +2067,16 @@ namespace gr {
                             
                             
                             std::cout<<"SF: "<<SF<<" BW: "<<BW_LX/1000.0<<"KHz"<<std::endl;
-
                             if(BW_LX!=d_bw){
                                 float BW=BW_LX/1000.0;
                                 std::cout<<"BE_diff"<<std::endl;
                                 comeback_flag=0;
                                 pmt::pmt_t payload_bloblx = pmt::cons(pmt::intern(std::string("BW")), pmt::from_double(BW));
                                 message_port_pub(pmt::mp("hahaout"), payload_bloblx);//lx
-
                             }
                             else{
                                 comeback_flag=1;
                             }
-
                             if((SF!=d_sf)||(BW_LX!=d_bw)){
                                 std::cout<<"SF_diff "<<std::endl;
                                 set_init(d_samples_per_second, BW_LX, SF, d_implicit, d_phdr.cr, d_phdr.has_mac_crc, d_reduced_rate, !d_enable_fine_sync);
@@ -2148,18 +2111,17 @@ namespace gr {
             x91_flag=false;
             x92_flag=false;
             x95_flag=false;
-            x102_flag=false;*/
-            x105_flag=false;
-            static uint8_t filename_count=0;
+            x102_flag=false;
+            x105_flag=false;*/
             
             
             char buf[256]={' '};
             char buf1[15]={' '};
             char buf2[10]={' '};
             uint32_t start_dex71=0;
-            uint32_t start_dex105=0;
             int returned_count=0;
             static int lx_flag=0;
+            static int hahacount=0;
             
             
             if(start_first){
@@ -2186,7 +2148,7 @@ namespace gr {
                         
                         uint32_t dex_71=0;
                         float corr_value711=xcorr(&d_upchirp71[0], &p_map[0], NULL, upchirp71_len,numbles_for_SF,true,&dex_71);
-                        //std::cout<<"child_71: "<<corr_value711<<std::endl;
+                        
                         //std::cout<<"dex_71: "<<(float)dex_71<<std::endl;
                         
                         memset (buf, ' ', sizeof(char) * (255));
@@ -2258,7 +2220,6 @@ namespace gr {
                             }
                             close(file_x72tofather[INPUT]);
                             write(file_x72tofather[OUTPUT], buf, i); 
-
                         }
                         exit(0);
                     }
@@ -2298,7 +2259,6 @@ namespace gr {
                                 }
                                 close(file_x81tofather[INPUT]);
                                 write(file_x81tofather[OUTPUT], buf, i); 
-
                             }
                             exit(0);
                         }
@@ -2338,7 +2298,6 @@ namespace gr {
                                     }
                                     close(file_x82tofather[INPUT]);
                                     write(file_x82tofather[OUTPUT], buf, i); 
-
                                 }
                                 exit(0);
                             }
@@ -2378,7 +2337,6 @@ namespace gr {
                                         }
                                         close(file_x85tofather[INPUT]);
                                         write(file_x85tofather[OUTPUT], buf, i); 
-
                                     }
                                     exit(0);
                                 }
@@ -2422,7 +2380,6 @@ namespace gr {
                                             }
                                             close(file_x91tofather[INPUT]);
                                             write(file_x91tofather[OUTPUT], buf, i); 
-
                                         }
                                         exit(0);
                                     }*/
@@ -2462,7 +2419,6 @@ namespace gr {
                                                 }
                                                 close(file_x92tofather[INPUT]);
                                                 write(file_x92tofather[OUTPUT], buf, i); 
-
                                             }
                                             exit(0);
                                         }
@@ -2502,7 +2458,6 @@ namespace gr {
                                                     }
                                                     close(file_x95tofather[INPUT]);
                                                     write(file_x95tofather[OUTPUT], buf, i); 
-
                                                 }
                                                 exit(0);
                                             }
@@ -2542,16 +2497,14 @@ namespace gr {
                                                         }
                                                         close(file_x102tofather[INPUT]);
                                                         write(file_x102tofather[OUTPUT], buf, i); 
-
                                                     }
                                                     exit(0);
-                                                }*/
+                                                }
                                                 else{
                                                     child105= fork();
                                                     if(child105== 0)
                                                     {
                                                         double auto_corr_D=0;
-                                                        std::cout<<"Hello child 105 start!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
                                                         while(1){
                                                             //******wait start****
                                                             close(file_fathertox1051[OUTPUT]);
@@ -2562,10 +2515,7 @@ namespace gr {
                                                             //******calculate xcorr****
                                                             returned_count=0;
                                                             memset (buf, ' ', sizeof(char) * (255));
-                                                            
-                                                            uint32_t dex_105=0;
-                                                            float corr_value105=xcorr(&d_upchirp105[0], &p_map[0], NULL, upchirp105_len,numbles_for_SF,true,&dex_105);//6145
-                                                            //std::cout<<"child_105: "<<corr_value105<<std::endl;
+                                                            float corr_value105=xcorr(&d_upchirp105[0], &p_map[0], NULL, upchirp105_len,numbles_for_SF);
                                                             //******wait data_auto_corr for normalized****
                                                             memset (buf, ' ', sizeof(char) * (255));
                                                             close(file_fathertox105[OUTPUT]);
@@ -2578,9 +2528,6 @@ namespace gr {
                                                             //******send normalized dete_value to father process****
                                                             memset (buf, ' ', sizeof(char) * (255));
                                                             sprintf(buf,"%.6f",dete_value);
-                                                            sprintf(buf,"%s%c",buf,'+');
-                                                            sprintf(buf,"%s%d",buf,dex_105);
-                                                            sprintf(buf,"%s%c",buf,'#');
                                                             int i=0;
                                                             for(i;i<255;i++){
                                                                 if(buf[i]==' '){
@@ -2589,12 +2536,11 @@ namespace gr {
                                                             }
                                                             close(file_x105tofather[INPUT]);
                                                             write(file_x105tofather[OUTPUT], buf, i); 
-
                                                         }
                                                         exit(0);
                                                     }
                                                 }
-                                           /* }
+                                            }
                                         }
                                     }*/
                               //  }
@@ -2608,6 +2554,14 @@ namespace gr {
             {  
                 switch (d_state) {
                     case gr::lora::DecoderState::SYNC: {
+                        
+                        //double dex_find=find_mini_time_interval(&input[0]);
+                        //std::cout<<"Dex: "<<(float)(dex_find)<<std::endl;
+						//std::cout << boost::format("before time_uart::  %.9f seconds\n") % (time_uart)<<std::endl;
+						//time_uart=time_uart+double(dex_find/1000000.0/16.0);
+						//std::cout << boost::format("deta time::  %.9f seconds\n") % (double(dex_find/1000000.0/16.0))<<std::endl;
+						//std::cout << boost::format("after time_uart::  %.9f seconds\n") % (time_uart)<<std::endl;
+                        
                         uint32_t count=2;
                         float* value=(float *) malloc(sizeof(float) * (count));
                         match_filter(&d_dnchirp71[0], &d_upchirp71[0], &input[0],value, count,upchirp71_len);
@@ -2615,8 +2569,16 @@ namespace gr {
                             if(value[i]>800)
                                 value[i]=value[i]-896;
                         }
-                        std::cout<<"SYNC: value[0/1]"<<value[0]<<"/ "<<value[1]<<std::endl;
+                        //std::cout<<"SYNC: value[0/1]"<<value[0]<<"/ "<<value[1]<<std::endl;
                         if(value[0]==0&&value[1]==0){
+                            if(hahacount==100){
+                                std::cout<<"Have Received 100 messages!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
+                                while(1);
+                            }
+							samples_to_file("/home/lx/decode_lora/sync.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
+							//sleep(60);
+                            hahacount=hahacount+1;
+                            
                             d_state = gr::lora::DecoderState::FIND_SFD;
                             consume_each(upchirp71_len);
                         }
@@ -2632,7 +2594,7 @@ namespace gr {
                                     match_filter(&d_dnchirp71[0], &d_upchirp71[0], upchirp_temp,value, count,upchirp71_len);
                                     if(value[0]>800)
                                         value[0]=value[0]-896;
-                                    std::cout<<"value: "<<value[0]<<std::endl;
+                                    //std::cout<<"value: "<<value[0]<<std::endl;
                                     if(value[0]==value_old+1){
                                         dex=i;
                                         break;
@@ -2646,7 +2608,7 @@ namespace gr {
                                         dex=8;
                                     }
                                 }
-                                 std::cout<<"dex: "<<dex<<std::endl;
+                                 //std::cout<<"dex: "<<dex<<std::endl;
                                 if (value_old==0){
                                     consum_count=1024-6+dex;
                                 }
@@ -2654,7 +2616,7 @@ namespace gr {
                                     consum_count=1024-(value_old+1)*8+dex;
                                 }
 
-                                samples_to_file("/home/lx/decode_lora/sync.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
+                                //samples_to_file("/home/lx/decode_lora/sync.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
                                 consume_each(consum_count);
                             }
                             else{
@@ -2672,13 +2634,13 @@ namespace gr {
                         match_filter(&d_dnchirp71[0], &d_upchirp71[0], &input[0],value, count,upchirp71_len);
                         uint32_t i=0;
                         for(i=0;i<count;i++){
-                           // std::cout<<"value2["<<i<<"]: "<<value[i]<<std::endl;
-
-                            if (value[i]==1023) {
-                                if(value[i+1]==1023){
+                            //std::cout<<"value2["<<i<<"]: "<<value[i]<<std::endl;
+                            
+                            if ((value[i]==1023)||(value[i]==113)) {
+                                if(value[i+1]==value[i]){//lingshi LXLX
                                     d_state = gr::lora::DecoderState::PAUSE;
                                     consume_each((i+1)*upchirp71_len);
-                                    std::cout<<"1023_dex: "<<i<<std::endl;
+                                    //std::cout<<"1023_dex: "<<i<<std::endl;
                                 }
                                 else{
                                     lx_flag=0;
@@ -2727,7 +2689,7 @@ namespace gr {
 
                     case gr::lora::DecoderState::DECODE_HEADER: {
                         d_phdr.cr = 4u;
-                        samples_to_file("/home/lx/decode_lora/header.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
+                        //samples_to_file("/home/lx/decode_lora/header.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
                         if (demodulatelx(input, true)) {
                             decode(true);
                             gr::lora::print_vector_hex(std::cout, &d_decoded[0], d_decoded.size(), false);std::cout<<std::endl;
@@ -2755,7 +2717,6 @@ namespace gr {
                     }
 
                     case gr::lora::DecoderState::DECODE_PAYLOAD: {
-                        if(start_payload==0) start_payload=1;
                         if (d_implicit && determine_energy(input) < d_energy_threshold) {
                             d_payload_symbols = 0;
                             //d_demodulated.erase(d_demodulated.begin(), d_demodulated.begin() + 7u); // Test for SF 8 with header
@@ -2764,7 +2725,7 @@ namespace gr {
                             if(!d_implicit)
                                 d_payload_symbols -= (4u + d_phdr.cr);
                         }
-                        samples_to_file("/home/lx/decode_lora/payload.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
+                        //samples_to_file("/home/lx/decode_lora/payload.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
                        
                         if (d_payload_symbols <= 0) {
                             decode(false);
@@ -2782,6 +2743,10 @@ namespace gr {
                             }
                             
                             samples_to_file_add("/home/lx/decode_lora/record.txt",  &d_decoded[0],&sf_BW_temp[0],d_payload_length);
+							
+							write_uart(time_uart);
+                    		time_to_file_add("/home/lx/decode_lora/time.txt",time_uart);
+							
                             lx_flag=0;
                             //sleep(60);
                             //message_port_pub(pmt::mp("hahaout"), payload_bloblx);//lx
@@ -2817,7 +2782,7 @@ namespace gr {
             
             
             //std::cout<<"child81: "<<child81<<std::endl;
-            if(lx_flag==0)
+            if((lx_flag==0)&&(program_start_all_lx==true))
             {
                 memcpy (p_map, input, sizeof(gr_complex) * numbles_for_SF); 
 
@@ -2830,8 +2795,8 @@ namespace gr {
                 write(file_fathertox911[OUTPUT], "start", 5);*/
                 /*write(file_fathertox921[OUTPUT], "start", 5);
                 write(file_fathertox951[OUTPUT], "start", 5);
-                write(file_fathertox1021[OUTPUT], "start", 5);*/
-                write(file_fathertox1051[OUTPUT], "start", 5);
+                write(file_fathertox1021[OUTPUT], "start", 5);
+                write(file_fathertox1051[OUTPUT], "start", 5);*/
                 gettimeofday(&dwStart,NULL); 
                 gr_complex result;
                 //float auto_corr_D=xcorr(&input[0], &input[0], NULL,  numbles_for_SF,numbles_for_SF); 
@@ -2859,14 +2824,14 @@ namespace gr {
                 write(file_fathertox91[OUTPUT], buf, i);*/
                 /*write(file_fathertox92[OUTPUT], buf, i);
                 write(file_fathertox95[OUTPUT], buf, i);
-                write(file_fathertox102[OUTPUT], buf, i);*/
-                write(file_fathertox105[OUTPUT], buf, i);
+                write(file_fathertox102[OUTPUT], buf, i);
+                write(file_fathertox105[OUTPUT], buf, i);*/
 
                 memset (buf, ' ', sizeof(char) * (255));
                 returned_count=0;
                 //printf("father wait dete_value\n");
 
-                while(num_end_pro!=2){
+                while(num_end_pro!=1){
 
                     if(!x71_flag){
                         returned_count = read(file_x71tofather[INPUT], buf, sizeof(buf));
@@ -2901,7 +2866,7 @@ namespace gr {
                             //std::cout<<"                                             1"<<std::endl;
                         }
                     }
-                     /*if(!x72_flag){
+                     if(!x72_flag){
                         returned_count = read(file_x72tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[1]=atof(buf);
@@ -2914,11 +2879,10 @@ namespace gr {
                             //sleep(60);
                         }
                     }
-                  if(!x81_flag){
+                  /*if(!x81_flag){
                         returned_count = read(file_x81tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[2]=atof(buf);
-
                             returned_count=0;
                             x81_flag=true;
                             num_end_pro=num_end_pro+1;
@@ -2930,7 +2894,6 @@ namespace gr {
                         returned_count = read(file_x82tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[3]=atof(buf);
-
                             returned_count=0;
                             x82_flag=true;
                             num_end_pro=num_end_pro+1;
@@ -2942,7 +2905,6 @@ namespace gr {
                         returned_count = read(file_x85tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[4]=atof(buf);
-
                             returned_count=0;
                             x85_flag=true;
                             num_end_pro=num_end_pro+1;
@@ -2954,7 +2916,6 @@ namespace gr {
                         returned_count = read(file_x91tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[5]=atof(buf);
-
                             returned_count=0;
                             x91_flag=true;
                             num_end_pro=num_end_pro+1;
@@ -2966,7 +2927,6 @@ namespace gr {
                         returned_count = read(file_x92tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[6]=atof(buf);
-
                             returned_count=0;
                             x92_flag=true;
                             num_end_pro=num_end_pro+1;
@@ -2978,7 +2938,6 @@ namespace gr {
                         returned_count = read(file_x95tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[7]=atof(buf);
-
                             returned_count=0;
                             x95_flag=true;
                             num_end_pro=num_end_pro+1;
@@ -2990,47 +2949,28 @@ namespace gr {
                         returned_count = read(file_x102tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
                             lxdete_value[8]=atof(buf);
-
                             returned_count=0;
                             x102_flag=true;
                             num_end_pro=num_end_pro+1;
                             memset (buf, ' ', sizeof(char) * (255));
                             //std::cout<<"                                             9"<<std::endl;
                         }
-                    }*/
+                    }
                     if(!x105_flag){
                         returned_count = read(file_x105tofather[INPUT], buf, sizeof(buf));
                         if(returned_count!=0){
-                            int receive_part=1;
-                            for(int i=0;i<255;i++){
-                                //std::cout<<"buf:"<<i<<" "<<buf[i]<<std::endl;
-                                if(*(buf+i)=='+'){
-                                    receive_part=i;
-                                    continue;
-                                }
-                                if(*(buf+i)=='#'){
-                                    break;
-                                }
-                                if(receive_part==1){
-                                    *(buf1+i)=*(buf+i);
-                                }
-                                else{
-                                    *(buf2+i-receive_part)=*(buf+i);
-                                }
-                            }
-                            lxdete_value[9]=atof(buf1);
-                            start_dex105=atof(buf2);
+                            lxdete_value[9]=atof(buf);
                             returned_count=0;
                             x105_flag=true;
                             num_end_pro=num_end_pro+1;
                             memset (buf, ' ', sizeof(char) * (255));
                         }
-                    }
+                    }*/
                     //std::cout<<"num_end_pro: "<<num_end_pro<<std::endl;
                 }
                 //std::cout<<"lxdete_value[0]: "<<lxdete_value[0]<<std::endl;
                 //samples_to_file("/home/lx/decode_lora/data71.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
-                if((lxdete_value[0]>1.5||lxdete_value[9]>1.5)){
+                if((lxdete_value[0]>1.5)){
                 //for(int i=0;i<10;i++){
                    // if(lxdete_value[i]>2){
                     std::cout<<"                 lxdete_value[0]: "<<lxdete_value[0]<<std::endl;
@@ -3042,51 +2982,35 @@ namespace gr {
                     //std::cout<<"                 lxdete_value[6]: "<<lxdete_value[6]<<std::endl;
                     //std::cout<<"                 lxdete_value[7]: "<<lxdete_value[7]<<std::endl;
                     //std::cout<<"                 lxdete_value[8]: "<<lxdete_value[8]<<std::endl;
-                    std::cout<<"                 lxdete_value[9]: "<<lxdete_value[9]<<std::endl;
-                    //break;
+                    //std::cout<<"                 lxdete_value[9]: "<<lxdete_value[9]<<std::endl;
+                        //break;
                     //lx_flag=1;
-                    if(lxdete_value[9]>1.5){
-                        if(filename_count==0){
-                            samples_to_file("/home/lx/decode_lora/data105_0.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
-                        }
-                        if(filename_count==1){
-                            samples_to_file("/home/lx/decode_lora/data105_1.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
-                        }
-                        if(filename_count==2){
-                            samples_to_file("/home/lx/decode_lora/data105_2.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
-                        }
-                        if(filename_count==3){
-                            samples_to_file("/home/lx/decode_lora/data105_3.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
-                        }
-                        if(filename_count==4){
-                            samples_to_file("/home/lx/decode_lora/data105_4.bin", &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
-                        }
-                        //samples_to_file(file_name_105, &input[0], numbles_for_SF, sizeof(gr_complex));//"/home/lx/decode_lora/data105.bin"
-                        std::cout <<"receive_ed data105"<<std::endl;
-                        consume_each(numbles_for_SF);
-                        filename_count=filename_count+1;
-                        if(filename_count==5){
-                            while(1);
-                        }
+                    double time = usrp->get_time_now_to_real_secs(0);
+					double newlx=0;
+					double oldlx=0;
+					for (int i=0;i<20;i++){
+						newlx = usrp->get_time_now_to_real_secs(0);
+						std::cout << boost::format("Now_Time::  %.9f seconds\n") % (newlx-oldlx)<<std::endl;
+						oldlx=newlx;
+					}
+                    time=time+double(start_dex71/1000000.0);
+					std::cout << boost::format("Now_Time::  %.9f seconds\n") % (time)<<std::endl;
+					time_uart=0;
+					time_uart=time;
+                    //std::cout <<"start_uart"<<std::endl;
+                    //write_uart(time);
+                    //std::cout <<"end_uart"<<std::endl;
+                    //time_to_file_add("/home/lx/decode_lora/time.txt",time);
+                    
+                    if(lx_flag==0){
+                        //samples_to_file("/home/lx/decode_lora/data71.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
                         
-                        /*double time = usrp->get_time_now_to_real_secs(0);
-                        std::cout << boost::format("Now_Time::  %.9f seconds\n") % (time)<<std::endl;
-                        time=time+double(start_dex105/1000000.0);
-                        std::cout <<"start_uart"<<std::endl;
-                        write_uart(time);
-                        std::cout <<"end_uart"<<std::endl;
-                        time_to_file_add("/home/lx/decode_lora/time.txt",time);*/
+                        consume_each(start_dex71-1024);
+                        d_corr_fails = 0u;
+                        //sleep(60);
+                        
                     }
-                    else{
-                        if(lx_flag==0){
-                            samples_to_file("/home/lx/decode_lora/data71.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
-                            consume_each(start_dex71-1024);
-                            d_corr_fails = 0u;
-                            //sleep(60);
-
-                        }
-                        lx_flag=lx_flag+1;
-                    }
+                    lx_flag=lx_flag+1;
                     /*if(lx_flag==2){
                         samples_to_file("/home/lx/decode_lora/data72.bin", &input[0], numbles_for_SF, sizeof(gr_complex));
                         uint32_t count=(numbles_for_SF-numbles_for_SF%upchirp71_len)/upchirp71_len;
@@ -3126,10 +3050,13 @@ namespace gr {
                 }*/
                 //consume_each(numbles_for_SF);
 
-                gettimeofday(&dwEnd,NULL);
+                gettimeofday(&dwEnd,NULL);  
                 dwTime = 1000000*(dwEnd.tv_sec-dwStart.tv_sec)+(dwEnd.tv_usec-dwStart.tv_usec);  
                // printf("P_T: %ld\n",dwTime); 
             }
+            /*else{
+                consume_each(numbles_for_SF);
+            }*/
             
             /*if(dete_noise){
                 int para_dex=0;
@@ -3173,10 +3100,8 @@ namespace gr {
                         consume_each(d_samples_per_symbol);
                         //samples_to_file("/home/lx/decode_lora/after_detect.bin",  &input[0], d_samples_per_symbol*4, sizeof(gr_complex));
                         
-
                         break;
                     }
-
                     case gr::lora::DecoderState::SYNC: {
                         int i = 0;
                         
@@ -3192,30 +3117,23 @@ namespace gr {
                         //std::cout<<"start_FIND_SFD,i= "<<i<<std::endl;
                         break;
                     }
-
                     case gr::lora::DecoderState::FIND_SFD: {
                         const float c = detect_downchirp(input, d_samples_per_symbol);
                         #ifdef DEBUG
                             d_debug << "Cd: " << c << std::endl;
                         #endif
-
                         //std::cout<<"c: "<<c<<std::endl;           
-
                         if (c > 0.96f) {
-
                         //std::cout<<"downchirp"<<std::endl;
-
                             #ifdef DEBUG
                                 d_debug << "SYNC: " << c << std::endl;
                             #endif
                             // Debug stuff
                             samples_to_file("/tmp/sync", input, d_samples_per_symbol, sizeof(gr_complex));
-
                             d_state = gr::lora::DecoderState::PAUSE;
                         } else {
                             if(c < -0.97f) {
                                 fine_sync(input, d_number_of_bins-1, d_decim_factor * 4);
-
                                 //std::cout<<"d_fine_sync: "<<d_fine_sync<<std::endl;
                                 //std::cout<<"upchirp"<<std::endl;
                             } else {
@@ -3223,7 +3141,6 @@ namespace gr {
                                 //std::cout<<"noise"<<std::endl;
                                                             
                             }
-
                             if (d_corr_fails > 4u) {
                                 d_state = gr::lora::DecoderState::DETECT;
                                 //lx_flag=0;
@@ -3235,11 +3152,9 @@ namespace gr {
                                 #endif
                             }
                         }
-
                         consume_each((int32_t)d_samples_per_symbol+d_fine_sync);
                         break;
                     }
-
                     case gr::lora::DecoderState::PAUSE: {
                         if(d_implicit){
                             d_state = gr::lora::DecoderState::DECODE_PAYLOAD;
@@ -3250,10 +3165,8 @@ namespace gr {
                         consume_each(d_samples_per_symbol + d_delay_after_sync);
                         break;
                     }
-
                     case gr::lora::DecoderState::DECODE_HEADER: {
                         d_phdr.cr = 4u;
-
                         if (demodulate(input, true)) {
                             decode(true);
                             gr::lora::print_vector_hex(std::cout, &d_decoded[0], d_decoded.size(), false);
@@ -3261,10 +3174,8 @@ namespace gr {
                             if (d_phdr.cr > 4)
                                 d_phdr.cr = 4;
                             d_decoded.clear();
-
                             d_payload_length = d_phdr.length + MAC_CRC_SIZE * d_phdr.has_mac_crc;
                             //d_phy_crc = SM(decoded[1], 4, 0xf0) | MS(decoded[2], 0xf0, 4);
-
                             // Calculate number of payload symbols needed
                             uint8_t redundancy = (d_sf > 10 ? 2 : 0);
                             const int symbols_per_block = d_phdr.cr + 4u;
@@ -3272,18 +3183,14 @@ namespace gr {
                             const float symbols_needed  = bits_needed * (symbols_per_block / 4.0f) / float(d_sf - redundancy);
                             const int blocks_needed     = (int)std::ceil(symbols_needed / symbols_per_block);
                             d_payload_symbols     = blocks_needed * symbols_per_block;
-
                             #ifdef DEBUG
                                 d_debug << "LEN: " << d_payload_length << " (" << d_payload_symbols << " symbols)" << std::endl;
                             #endif
-
                             d_state = gr::lora::DecoderState::DECODE_PAYLOAD;
                         }
-
                         consume_each((int32_t)d_samples_per_symbol+d_fine_sync);
                         break;
                     }
-
                     case gr::lora::DecoderState::DECODE_PAYLOAD: {
                         if (d_implicit && determine_energy(input) < d_energy_threshold) {
                             d_payload_symbols = 0;
@@ -3293,7 +3200,6 @@ namespace gr {
                             if(!d_implicit)
                                 d_payload_symbols -= (4u + d_phdr.cr);
                         }
-
                         if (d_payload_symbols <= 0) {
                             decode(false);
                             gr::lora::print_vector_hex(std::cout, &d_decoded[0], d_payload_length, true);
@@ -3315,7 +3221,6 @@ namespace gr {
                             //message_port_pub(pmt::mp("hahaout"), payload_bloblx);//lx
                             //std::cout<<"out1"<<std::endl;
                             msg_lora_frame();
-
                             d_state = gr::lora::DecoderState::DETECT;
                             d_decoded.clear();
                             d_words.clear();
@@ -3326,15 +3231,12 @@ namespace gr {
                         }
                         
                         consume_each((int32_t)d_samples_per_symbol+d_fine_sync);
-
                         break;
                     }
-
                     case gr::lora::DecoderState::STOP: {
                         consume_each(d_samples_per_symbol);
                         break;
                     }
-
                     default: {
                         std::cerr << "[LoRa Decoder] WARNING : No state! Shouldn't happen\n";
                         break;
@@ -3377,11 +3279,18 @@ namespace gr {
             //         << "Nothing set, kept SR of " << d_samples_per_second << "." << std::endl;
         }
         void decoder_impl::set_usrp_sptr(dev_sptr usrp_sprt) {
-            printf("HahA1\n");
-            usrp=usrp_sprt;
-            //std::cout<<usrp_sprt->get_clock_rate(0)<<std::endl;
-            double time = usrp->get_time_now_to_real_secs(0);
-            std::cout << boost::format("Now_Time::  %.9f seconds\n") % (time)<<std::endl;
+            
+            if(usrp==NULL){
+                printf("HahA1\n");
+                usrp=usrp_sprt;
+            }
+            else{
+                printf("HahA2\n");
+                double time = usrp->get_time_now_to_real_secs(0);
+                std::cout << boost::format("Now_Time::  %.9f seconds\n") % (time)<<std::endl;
+                program_start_all_lx=true;
+            }
+            
             //printf("HahA2\n");
             //time.get_real_secs();
         }
